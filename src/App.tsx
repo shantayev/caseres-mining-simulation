@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import clsx from 'clsx';
 import { CommunityView } from './components/CommunityView';
 import { DeveloperView } from './components/DeveloperView';
 import { AdminView } from './components/AdminView';

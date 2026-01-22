@@ -15,8 +15,6 @@ interface DeveloperResult {
   selectedLocations: string[];
 }
 
-type SizeId = '8km' | '4km' | '2km' | '1km' | '0.5km' | 'oppose';
-
 const SIZE_INDICES: Record<string, number> = {
   '8km': 0, '4km': 1, '2km': 2, '1km': 3, '0.5km': 4, 'oppose': 5
 };
@@ -95,7 +93,8 @@ export const AdminView: React.FC = () => {
       if (gap === 0) {
         messages.push(`Size Match: Perfect! Both selected ${SIZE_LABELS[communityData.winnerId]}.`);
       } else if (gap <= 2) {
-        if (status !== 'infeasible') status = 'suboptimal'; // Don't downgrade if already red
+        // Only downgrade to suboptimal if we are currently optimal
+        if (status === 'optimal') status = 'suboptimal'; 
         messages.push(`Size Mismatch: Gap of ${gap} steps. (${SIZE_LABELS[developerData.winnerId]} vs ${SIZE_LABELS[communityData.winnerId]}).`);
       } else {
         status = 'infeasible';
