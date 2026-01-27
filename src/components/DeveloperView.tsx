@@ -1,5 +1,4 @@
-import React, { useState, useMemo } from 'react';
-import clsx from 'clsx';
+import React, { useState } from 'react';
 import { Droplets, Trash2, TrendingDown, DollarSign, Download, Settings } from 'lucide-react';
 
 // --- Constants & Data ---
