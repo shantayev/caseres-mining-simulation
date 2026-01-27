@@ -1,73 +1,76 @@
-# React + TypeScript + Vite
+# CASERAS Negotiation Simulation
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A multi-role decision support tool for simulating negotiations between a **Mining Developer** and a **Community Group**, overseen by an **Administrator**.
 
-Currently, two official plugins are available:
+## 🚀 Live Access
+**URL**: [https://caseras-negotiation-app.vercel.app](https://caseras-negotiation-app.vercel.app)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+---
 
-## React Compiler
+## 🔑 Access Codes (PINs)
+To ensure role separation, each interface is protected by a PIN code.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+| Role | PIN | Description |
+|---|---|---|
+| **Community Group** | `1234` | Selects mine size preference, "Areas to Avoid", and "Community Benefits". |
+| **Mining Developer** | `5678` | Configures mine capacity/size and allocates R&D budget for environmental mitigation. |
+| **Administrator** | `5555` | Uploads results from both groups to assess feasibility and conflicts. |
 
-## Expanding the ESLint configuration
+> **How to Change PINs:**
+> 1. Open `src/App.tsx`.
+> 2. Locate the `handlePinSubmit` function (~line 18).
+> 3. Edit the strings `'1234'`, `'5678'`, or `'5555'`.
+> 4. Commit and push changes to update the live site.
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+---
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+## 🎮 Simulation Workflow
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+### 1. Community Group (`1234`)
+*   **Goal**: Maximize unlocked benefits while protecting critical areas.
+*   **Matrix**: Vote (0-5) on preferences for 5 Mine Size Scenarios.
+*   **Benefits**: Larger mines unlock more benefits (Canoe, Irrigation, etc.).
+*   **Output**: Downloads `community_results.csv`.
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+### 2. Mining Developer (`5678`)
+*   **Goal**: Maximize production while meeting environmental standards.
+*   **Step 1 (Config)**: Select **Mine Size** (Waste Baseline) and **Capacity** (Water Baseline).
+    *   *Logic*: Total Budget = ($1.5M \times \text{Size}$) + ($1.5 \times \text{Capacity}$).
+*   **Step 2 (Allocation)**: Use slider to split budget between **Water Mitigation** and **Waste Management**.
+    *   *Math*: $Value_{final} = Baseline \times (0.2 + 0.8 \times e^{-0.5 \times Budget})$.
+*   **Output**: Downloads `mining_simulation_results.csv`.
+
+### 3. Administrator (`5555`)
+*   **Action**: Upload both CSV files.
+*   **Logic Check**:
+    1.  **Water Constraint**: If Community wants *Canoe/Irrigation*, Mining Water must be **$\le$ 800,000 m³**.
+    2.  **Waste Constraint**: If Community wants *Park/Energy*, Mining Waste must be **$\le$ 5,000,000 tons**.
+    3.  **Size Consensus**: Checks if both parties aimed for a similar Mine Size (Gap $\le$ 2 steps).
+*   **Result**: Displays **Optimal** (Green), **Suboptimal** (Yellow), or **Infeasible** (Red).
+
+---
+
+## 🛠️ Technical Maintenance
+
+### Running Locally
+```bash
+git clone https://github.com/YOUR_USERNAME/caseras-negotiation-app.git
+cd caseras-negotiation-app
+npm install
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+### Updating the Site
+The site is hosted on **Vercel** and connected to the GitHub repository.
+1.  Make changes to the code locally.
+2.  Push to the `main` branch:
+    ```bash
+    git add .
+    git commit -m "Description of change"
+    git push origin main
+    ```
+3.  Vercel will automatically detect the push and redeploy the site within 1-2 minutes.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+### Troubleshooting
+*   **"Infeasible" Result?** The Developer likely needs to allocate more budget to the specific constraint (Water or Waste) requested by the Community benefits.
+*   **CSV Error?** Ensure users do not rename or modify the CSV files before uploading.
