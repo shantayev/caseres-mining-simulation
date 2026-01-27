@@ -3,7 +3,7 @@
 A multi-role decision support tool for simulating negotiations between a **Mining Developer** and a **Community Group**, overseen by an **Administrator**.
 
 ## 🚀 Live Access
-**URL**: [https://caseras-negotiation-app.vercel.app](https://caseras-negotiation-app.vercel.app)
+**URL**: [https://caseres-mining-simulation.vercel.app/](https://caseres-mining-simulation.vercel.app/)
 
 ---
 
