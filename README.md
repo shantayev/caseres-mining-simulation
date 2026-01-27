@@ -12,14 +12,14 @@ To ensure role separation, each interface is protected by a PIN code.
 
 | Role | PIN | Description |
 |---|---|---|
-| **Community Group** | `1234` | Selects mine size preference, "Areas to Avoid", and "Community Benefits". |
-| **Mining Developer** | `5678` | Configures mine capacity/size and allocates R&D budget for environmental mitigation. |
-| **Administrator** | `5555` | Uploads results from both groups to assess feasibility and conflicts. |
+| **Community Group** | *(Provided by Admin)* | Selects mine size preference, "Areas to Avoid", and "Community Benefits". |
+| **Mining Developer** | *(Provided by Admin)* | Configures mine capacity/size and allocates R&D budget for environmental mitigation. |
+| **Administrator** | *(Provided by Admin)* | Uploads results from both groups to assess feasibility and conflicts. |
 
 > **How to Change PINs:**
 > 1. Open `src/App.tsx`.
 > 2. Locate the `handlePinSubmit` function (~line 18).
-> 3. Edit the strings `'1234'`, `'5678'`, or `'5555'`.
+> 3. Edit the code to set your own secure PINs.
 > 4. Commit and push changes to update the live site.
 
 ---
