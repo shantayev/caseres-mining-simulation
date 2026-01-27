@@ -160,7 +160,12 @@ export const CommunityView: React.FC = () => {
   };
 
   const handleDownloadCSV = () => {
-    const csvContent = `winnerId,consensusAreaId,benefitsCount\n${winnerId},${consensusAreaId || 'null'},${selectedBenefitsList.length}`;
+    // Collect benefit IDs separated by pipe |
+    const benefitIds = selectedBenefitsList.map(item => item.benefitId).join('|');
+    
+    // Updated CSV format: winnerId,consensusAreaId,benefitsCount,benefitIds
+    const csvContent = `winnerId,consensusAreaId,benefitsCount,benefitIds\n${winnerId},${consensusAreaId || 'null'},${selectedBenefitsList.length},${benefitIds}`;
+    
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');

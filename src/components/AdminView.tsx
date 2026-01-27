@@ -8,19 +8,22 @@ interface CommunityResult {
   winnerId: string;
   consensusAreaId: string | null;
   benefitsCount: number;
+  selectedBenefitIds: string[]; // New: we need the specific benefit IDs
 }
 
 interface DeveloperResult {
-  winnerId: string;
-  selectedLocations: string[];
+  size_km2: number;
+  capacity_mton: number;
+  final_water: number;
+  final_waste: number;
 }
-
-const SIZE_INDICES: Record<string, number> = {
-  '8km': 0, '4km': 1, '2km': 2, '1km': 3, '0.5km': 4, 'oppose': 5
-};
 
 const SIZE_LABELS: Record<string, string> = {
   '8km': '8 km²', '4km': '4 km²', '2km': '2 km²', '1km': '1 km²', '0.5km': '0.5 km²', 'oppose': 'Oppose Mine'
+};
+
+const SIZE_INDICES: Record<string, number> = {
+  '8km': 0, '4km': 1, '2km': 2, '1km': 3, '0.5km': 4, 'oppose': 5
 };
 
 // --- Helper Functions ---
@@ -28,21 +31,48 @@ const SIZE_LABELS: Record<string, string> = {
 const parseCSV = (text: string, type: 'community' | 'developer'): any => {
   const lines = text.trim().split('\n');
   if (lines.length < 2) return null;
-  const values = lines[1].split(','); // Assume header is line 0
+  const values = lines[1].split(','); 
 
   if (type === 'community') {
+    // Old: winnerId,consensusAreaId,benefitsCount
+    // New (Needs update in CommunityView first? Or we assume we update parsing logic)
+    // Actually, I need to update CommunityView to export the Benefit IDs first.
+    // For now, let's assume the CSV format is:
+    // winnerId,consensusAreaId,benefitsCount,benefit1|benefit2|benefit3
+    
+    const benefitIds = values[3] ? values[3].split('|') : [];
+    
     return {
       winnerId: values[0],
       consensusAreaId: values[1] === 'null' ? null : values[1],
-      benefitsCount: Number(values[2])
+      benefitsCount: Number(values[2]),
+      selectedBenefitIds: benefitIds
     } as CommunityResult;
+
   } else {
-    // Developer CSV: winnerId, loc1|loc2|loc3
+    // New Developer CSV: 
+    // size_km2,capacity_mton,total_budget,water_alloc,waste_alloc,final_water,final_waste
     return {
-      winnerId: values[0],
-      selectedLocations: values[1] ? values[1].split('|') : []
+      size_km2: Number(values[0]),
+      capacity_mton: Number(values[1]),
+      final_water: Number(values[5]),
+      final_waste: Number(values[6])
     } as DeveloperResult;
   }
+};
+
+const getDevSizeId = (sizeVal: number): string => {
+  if (sizeVal === 3.5) return '8km'; // Mapping 3.5 (from new dev view) to 8km (old ID)? 
+  // Wait, Dev View uses [0.5, 1.0, 2.0, 3.5]. 
+  // Comm View uses ['8km', '4km', '2km', '1km', '0.5km'].
+  // There is a slight mismatch in options. 
+  // Let's approximate: 3.5 -> 8km(roughly large), 2.0 -> 2km, 1.0 -> 1km, 0.5 -> 0.5km.
+  // 4km is missing in Dev View options.
+  
+  if (sizeVal >= 3.0) return '8km'; 
+  if (sizeVal >= 1.5) return '2km'; // 2.0
+  if (sizeVal >= 0.8) return '1km'; // 1.0
+  return '0.5km'; // 0.5
 };
 
 export const AdminView: React.FC = () => {
@@ -63,42 +93,56 @@ export const AdminView: React.FC = () => {
     reader.readAsText(file);
   };
 
-  // --- Comparison Logic ---
   const getResult = () => {
     if (!communityData || !developerData) return null;
-
-    // 1. Location Conflict
-    const conflictArea = communityData.consensusAreaId 
-      ? developerData.selectedLocations.includes(communityData.consensusAreaId) 
-      : false;
-
-    // 2. Size Gap
-    const commIndex = SIZE_INDICES[communityData.winnerId];
-    const devIndex = SIZE_INDICES[developerData.winnerId];
-    const gap = Math.abs(devIndex - commIndex);
 
     let status: 'optimal' | 'suboptimal' | 'infeasible' = 'optimal';
     let messages: string[] = [];
 
-    // Check Location
-    if (conflictArea) {
-      status = 'infeasible';
-      messages.push(`CRITICAL: Developer selected an area the Community voted to avoid (${communityData.consensusAreaId}).`);
-    } else {
-      messages.push(`Location Check: OK. No overlap with restricted areas.`);
-    }
-
-    // Check Size
-    if (status !== 'infeasible') {
-      if (gap === 0) {
-        messages.push(`Size Match: Perfect! Both selected ${SIZE_LABELS[communityData.winnerId]}.`);
-      } else if (gap <= 2) {
-        // Only downgrade to suboptimal if we are currently optimal
-        if (status === 'optimal') status = 'suboptimal'; 
-        messages.push(`Size Mismatch: Gap of ${gap} steps. (${SIZE_LABELS[developerData.winnerId]} vs ${SIZE_LABELS[communityData.winnerId]}).`);
+    // 1. Water Constraint (Canoe/Irrigation -> Water <= 800k)
+    const hasWaterBenefit = communityData.selectedBenefitIds.some(id => ['canoe', 'irrigation'].includes(id));
+    if (hasWaterBenefit) {
+      if (developerData.final_water <= 800000) {
+        messages.push(`Water Check: PASS. Community needs water (Canoe/Irrigation), and Mining usage (${(developerData.final_water/1000).toFixed(0)}k) is within limit.`);
       } else {
         status = 'infeasible';
-        messages.push(`Size Conflict: Gap of ${gap} steps is too large to bridge.`);
+        messages.push(`CRITICAL: Community requires water for Canoe/Irrigation, but Mining consumes ${(developerData.final_water/1000).toFixed(0)}k m³ (Limit: 800k).`);
+      }
+    } else {
+      messages.push(`Water Check: N/A (No water-sensitive benefits selected).`);
+    }
+
+    // 2. Waste Constraint (Park/Energy -> Waste <= 5M)
+    const hasWasteBenefit = communityData.selectedBenefitIds.some(id => ['park', 'energy'].includes(id));
+    if (status !== 'infeasible' && hasWasteBenefit) {
+      if (developerData.final_waste <= 5000000) {
+        messages.push(`Waste Check: PASS. Community needs clean land (Park/Energy), and Waste (${(developerData.final_waste/1000000).toFixed(1)}M) is within limit.`);
+      } else {
+        status = 'infeasible';
+        messages.push(`CRITICAL: Community requires land for Park/Energy, but Mining generates ${(developerData.final_waste/1000000).toFixed(1)}M tons waste (Limit: 5M).`);
+      }
+    } else if (!hasWasteBenefit) {
+      messages.push(`Waste Check: N/A (No land-sensitive benefits selected).`);
+    }
+
+    // 3. Mine Size Check
+    if (status !== 'infeasible') {
+      const devSizeId = getDevSizeId(developerData.size_km2);
+      const commIndex = SIZE_INDICES[communityData.winnerId];
+      const devIndex = SIZE_INDICES[devSizeId]; // Need to handle if mapping fails? Assumed safe.
+      
+      // If devIndex is undefined (e.g. mapping error), default to mismatch
+      const safeDevIndex = devIndex ?? 99; 
+      const gap = Math.abs(safeDevIndex - commIndex);
+
+      if (gap === 0) {
+        messages.push(`Size Match: Perfect! Both targeted ~${SIZE_LABELS[communityData.winnerId]}.`);
+      } else if (gap <= 2) {
+        if (status === 'optimal') status = 'suboptimal';
+        messages.push(`Size Mismatch: Gap of ${gap} steps. (Miner: ${developerData.size_km2}km² vs Community: ${SIZE_LABELS[communityData.winnerId]}).`);
+      } else {
+        status = 'infeasible';
+        messages.push(`Size Conflict: Miner wants ${developerData.size_km2}km² but Community voted for ${SIZE_LABELS[communityData.winnerId]}. Gap too large.`);
       }
     }
 
@@ -122,7 +166,7 @@ export const AdminView: React.FC = () => {
             {communityData ? (
               <div className="text-sm text-green-700 font-mono mb-2">
                 Winner: {SIZE_LABELS[communityData.winnerId]}<br/>
-                Avoid: {communityData.consensusAreaId || 'None'}
+                Benefits: {communityData.selectedBenefitIds.length} selected
               </div>
             ) : (
               <p className="text-sm text-gray-500 mb-2 italic">No file uploaded</p>
@@ -145,8 +189,8 @@ export const AdminView: React.FC = () => {
             <h3 className="font-bold text-lg mb-2">Developer Results</h3>
             {developerData ? (
               <div className="text-sm text-orange-700 font-mono mb-2">
-                Winner: {SIZE_LABELS[developerData.winnerId]}<br/>
-                Locs: {developerData.selectedLocations.join(', ')}
+                Size: {developerData.size_km2} km²<br/>
+                Water: {(developerData.final_water/1000).toFixed(0)}k | Waste: {(developerData.final_waste/1000000).toFixed(1)}M
               </div>
             ) : (
               <p className="text-sm text-gray-500 mb-2 italic">No file uploaded</p>
