@@ -35,7 +35,7 @@ function App() {
             <Lock size={40} className="text-gray-700" />
           </div>
           
-          <h1 className="text-2xl font-bold text-gray-800 mb-2">CASERAS Portal</h1>
+          <h1 className="text-2xl font-bold text-gray-800 mb-2">Mining Stakeholder Portal</h1>
           <p className="text-sm text-gray-500 mb-8 text-center">
             Please enter your designated access code to enter the negotiation workspace.
           </p>
@@ -73,8 +73,8 @@ function App() {
       {/* Header / Navigation */}
       <div className="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm border border-gray-200 shrink-0">
         <h1 className="text-2xl font-bold text-gray-800">
-          {viewMode === 'community' ? 'Community Matrix – CASERAS' : 
-           viewMode === 'developer' ? 'Developer Matrix – CASERAS' :
+          {viewMode === 'community' ? 'Community Matrix' : 
+           viewMode === 'developer' ? 'Mining Simulation' :
            'Administrator Dashboard'}
         </h1>
         <button 

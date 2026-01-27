@@ -1,4 +1,4 @@
-# CASERAS Negotiation Simulation
+# Mining Stakeholder Simulation
 
 A multi-role decision support tool for simulating negotiations between a **Mining Developer** and a **Community Group**, overseen by an **Administrator**.
 
