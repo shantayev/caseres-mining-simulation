@@ -1,12 +1,11 @@
 import React, { useState, useMemo } from 'react';
 import clsx from 'clsx';
-import { MapPin, X, Download } from 'lucide-react';
+import { MapPin, X, Download, Info } from 'lucide-react';
 
 // --- Types & Constants ---
 
 type GroupId = 'tourism' | 'agriculture' | 'academics' | 'industries' | 'environmental';
 type MineSizeId = '8km' | '4km' | '2km' | '1km' | '0.5km' | 'oppose';
-type AreaId = 'mountain' | 'aquifer' | 'oldtown' | 'campus';
 type BenefitId = 'canoe' | 'irrigation' | 'research' | 'energy' | 'park';
 
 interface Group {
@@ -23,28 +22,46 @@ const GROUPS: Group[] = [
   { id: 'environmental', label: 'Environmental', color: 'bg-teal-100 border-teal-300' },
 ];
 
-const MINE_SIZES: { id: MineSizeId; label: string; benefitsUnlocked: number }[] = [
-  { id: '8km', label: '8 km²', benefitsUnlocked: 5 },
-  { id: '4km', label: '4 km²', benefitsUnlocked: 4 },
-  { id: '2km', label: '2 km²', benefitsUnlocked: 3 },
-  { id: '1km', label: '1 km²', benefitsUnlocked: 2 },
-  { id: '0.5km', label: '0.5 km²', benefitsUnlocked: 1 },
-  { id: 'oppose', label: 'Oppose Mine', benefitsUnlocked: 0 },
+const MINE_SIZES: { id: MineSizeId; label: string; benefitsUnlocked: number; image: string }[] = [
+  { id: '8km', label: '8 km²', benefitsUnlocked: 3, image: '/mining_5.png' },
+  { id: '4km', label: '4 km²', benefitsUnlocked: 2, image: '/mining_4.png' },
+  { id: '2km', label: '2 km²', benefitsUnlocked: 2, image: '/mining_3.png' },
+  { id: '1km', label: '1 km²', benefitsUnlocked: 1, image: '/mining_2.png' },
+  { id: '0.5km', label: '0.5 km²', benefitsUnlocked: 1, image: '/mining_1.png' },
+  { id: 'oppose', label: 'Oppose Mine', benefitsUnlocked: 0, image: '/baseline.png' }, 
 ];
 
-const AREAS_TO_AVOID: { id: AreaId; label: string }[] = [
-  { id: 'mountain', label: 'Mountain Trails' },
-  { id: 'aquifer', label: 'Aquifer Systems' },
-  { id: 'oldtown', label: 'Old Town' },
-  { id: 'campus', label: 'University Campus' },
-];
-
-const BENEFITS: { id: BenefitId; label: string }[] = [
-  { id: 'canoe', label: 'Underground Canoe' },
-  { id: 'irrigation', label: 'New Irrigation System' },
-  { id: 'research', label: 'Research Facility' },
-  { id: 'energy', label: 'Energy Storage Systems' },
-  { id: 'park', label: 'Park/Forestry Expansion' },
+const BENEFITS: { id: BenefitId; label: string; image: string; description: string }[] = [
+  { 
+    id: 'canoe', 
+    label: 'Underground Canoe', 
+    image: '/canoe.png',
+    description: "Repurposed sections of underground aquifers or water tunnels can be safely adapted for guided canoeing and educational tourism. This creates a unique attraction tied to local geology and mining heritage, supporting tourism operators, guides, and small businesses while increasing public engagement with subsurface water systems."
+  },
+  { 
+    id: 'irrigation', 
+    label: 'New Irrigation System',
+    image: '/irrigation.png',
+    description: "Investment in modern irrigation infrastructure such as smart valves, sensors, and recycled water loops can reduce overall water consumption while improving crop yields. Local farmers benefit from more reliable water access, lower operating costs, and improved resilience to drought conditions."
+  },
+  { 
+    id: 'research', 
+    label: 'Research Facility',
+    image: '/research.png',
+    description: "Mining-linked research funding can support universities and technical institutes through long-term programs focused on water management, geotechnical engineering, environmental monitoring, and social impact studies. This strengthens local academic capacity, creates student opportunities, and anchors knowledge generation in the region."
+  },
+  { 
+    id: 'energy', 
+    label: 'Energy Storage Systems',
+    image: '/energy.png',
+    description: "Subsurface spaces and supporting infrastructure can be used for pilot-scale hydrogen or energy storage programs. This enables industrial partners to test low-carbon energy systems locally, attract clean energy investment, and create skilled jobs tied to future energy markets."
+  },
+  { 
+    id: 'park', 
+    label: 'Park/Forestry Expansion',
+    image: '/parks.png',
+    description: "Designated land buffers and post-operation areas can be converted into protected parks, reforestation zones, or biodiversity corridors. Environmental organizations gain long-term stewardship roles, enabling conservation, habitat restoration, and educational outreach while improving regional ecological outcomes."
+  },
 ];
 
 // --- Helper Functions ---
@@ -61,7 +78,7 @@ const getWinner = (votes: Record<GroupId, Record<MineSizeId, number>>) => {
   });
 
   // Find max
-  let winnerId: MineSizeId = '8km';
+  let winnerId: MineSizeId | null = null;
   let maxScore = -1;
 
   Object.entries(tallies).forEach(([id, score]) => {
@@ -71,12 +88,15 @@ const getWinner = (votes: Record<GroupId, Record<MineSizeId, number>>) => {
     }
   });
 
+  // If maxScore is 0 (initial state), no winner
+  if (maxScore === 0) return { winnerId: null, tallies };
+
   return { winnerId, tallies };
 };
 
 const getPreferredOption = (groupVotes: Record<MineSizeId, number>) => {
   let bestId: MineSizeId | null = null;
-  let max = -1;
+  let max = 0; // Start at 0, so if all are 0, bestId remains null
   Object.entries(groupVotes).forEach(([id, score]) => {
     if (score > max) {
       max = score;
@@ -84,24 +104,6 @@ const getPreferredOption = (groupVotes: Record<MineSizeId, number>) => {
     }
   });
   return bestId ? MINE_SIZES.find(m => m.id === bestId)?.label : '-';
-};
-
-const getMostFrequentAreaId = (areas: Record<GroupId, AreaId | ''>): AreaId | null => {
-  const counts: Record<string, number> = {};
-  Object.values(areas).forEach(a => {
-    if (a) counts[a] = (counts[a] || 0) + 1;
-  });
-  
-  let winner = '';
-  let max = 0;
-  Object.entries(counts).forEach(([area, count]) => {
-    if (count > max) {
-      max = count;
-      winner = area;
-    }
-  });
-  
-  return winner as AreaId || null;
 };
 
 export const CommunityView: React.FC = () => {
@@ -115,22 +117,16 @@ export const CommunityView: React.FC = () => {
     return initial;
   });
 
-  // State 2: Selected Areas to Avoid
-  const [selectedAreas, setSelectedAreas] = useState<Record<GroupId, AreaId | ''>>(() => {
-    const initial: any = {};
-    GROUPS.forEach(g => initial[g.id] = '');
-    return initial;
-  });
-
-  // State 3: Selected Benefits List (Queue)
+  // State 2: Selected Benefits List (Queue)
   const [selectedBenefitsList, setSelectedBenefitsList] = useState<{ groupId: GroupId; benefitId: BenefitId }[]>([]);
+
+  // State 3: Active Hover Benefit (for Right Panel Info)
+  const [hoveredBenefitId, setHoveredBenefitId] = useState<BenefitId | null>(null);
 
   // Derived State
   const { winnerId, tallies } = useMemo(() => getWinner(votes), [votes]);
-  const winner = MINE_SIZES.find(m => m.id === winnerId)!;
-  
-  const consensusAreaId = getMostFrequentAreaId(selectedAreas);
-  const consensusAreaLabel = consensusAreaId ? AREAS_TO_AVOID.find(a => a.id === consensusAreaId)?.label : 'None';
+  const winner = winnerId ? MINE_SIZES.find(m => m.id === winnerId) : null;
+  const benefitsUnlocked = winner ? winner.benefitsUnlocked : 0;
   
   // Handlers
   const handleVoteChange = (gId: GroupId, mId: MineSizeId, val: number) => {
@@ -142,11 +138,11 @@ export const CommunityView: React.FC = () => {
 
   const handleBenefitSelect = (gId: GroupId, bId: BenefitId) => {
     if (!bId) return;
-    if (selectedBenefitsList.length >= winner.benefitsUnlocked) return;
+    if (selectedBenefitsList.length >= benefitsUnlocked) return;
 
     setSelectedBenefitsList(prev => {
       const filtered = prev.filter(item => item.groupId !== gId);
-      if (filtered.length >= winner.benefitsUnlocked) return prev; 
+      if (filtered.length >= benefitsUnlocked) return prev; 
       return [...filtered, { groupId: gId, benefitId: bId }];
     });
   };
@@ -160,11 +156,8 @@ export const CommunityView: React.FC = () => {
   };
 
   const handleDownloadCSV = () => {
-    // Collect benefit IDs separated by pipe |
     const benefitIds = selectedBenefitsList.map(item => item.benefitId).join('|');
-    
-    // Updated CSV format: winnerId,consensusAreaId,benefitsCount,benefitIds
-    const csvContent = `winnerId,consensusAreaId,benefitsCount,benefitIds\n${winnerId},${consensusAreaId || 'null'},${selectedBenefitsList.length},${benefitIds}`;
+    const csvContent = `winnerId,benefitsCount,benefitIds\n${winnerId || 'none'},${selectedBenefitsList.length},${benefitIds}`;
     
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -176,11 +169,14 @@ export const CommunityView: React.FC = () => {
     document.body.removeChild(link);
   };
 
+  // Logic to show benefit info or mine image
+  const activeBenefit = hoveredBenefitId ? BENEFITS.find(b => b.id === hoveredBenefitId) : null;
+
   return (
     <div className="flex-1 flex gap-4 min-h-0 overflow-hidden relative">
         <button 
           onClick={handleDownloadCSV}
-          className="absolute bottom-4 left-4 z-50 bg-green-600 text-white px-4 py-2 rounded-full font-bold shadow-lg hover:bg-green-700 flex items-center gap-2"
+          className="absolute bottom-4 left-4 z-50 bg-green-600 text-white px-4 py-2 rounded-full font-bold shadow-lg hover:bg-green-700 flex items-center gap-2 text-sm"
         >
           <Download size={16} /> Submit / Export CSV
         </button>
@@ -230,27 +226,7 @@ export const CommunityView: React.FC = () => {
                   </td>
                 ))}
                 <td className="p-2 border text-center font-bold text-lg bg-yellow-200 border-yellow-400">
-                  {winner.label}
-                </td>
-              </tr>
-
-              {/* Areas to Avoid */}
-              <tr>
-                <td className="p-2 border font-bold">Areas to avoid</td>
-                {GROUPS.map(g => (
-                  <td key={g.id} className="p-1 border">
-                    <select 
-                      value={selectedAreas[g.id]}
-                      onChange={(e) => setSelectedAreas(prev => ({ ...prev, [g.id]: e.target.value as AreaId }))}
-                      className="w-full p-0.5 border rounded text-[10px]"
-                    >
-                      <option value="">Select Area...</option>
-                      {AREAS_TO_AVOID.map(a => <option key={a.id} value={a.id}>{a.label}</option>)}
-                    </select>
-                  </td>
-                ))}
-                <td className="p-2 border text-center font-medium bg-red-50 text-red-700">
-                  {consensusAreaLabel}
+                  {winner ? winner.label : '-'}
                 </td>
               </tr>
 
@@ -259,21 +235,27 @@ export const CommunityView: React.FC = () => {
                 <td className="p-2 border font-bold bg-blue-50">
                   <div>Preferred Community Benefit</div>
                   <div className="text-[10px] font-normal text-gray-500 mt-0.5">
-                    Unlocked: {selectedBenefitsList.length} / {winner.benefitsUnlocked}
+                    Unlocked: {selectedBenefitsList.length} / {benefitsUnlocked}
                   </div>
                 </td>
                 {GROUPS.map(g => {
-                  const isLocked = selectedBenefitsList.length >= winner.benefitsUnlocked && !getGroupSelection(g.id);
+                  const isLocked = selectedBenefitsList.length >= benefitsUnlocked && !getGroupSelection(g.id);
                   return (
                     <td key={g.id} className="p-1 border bg-blue-50/30">
                       <select 
                         value={getGroupSelection(g.id)}
                         onChange={(e) => handleBenefitSelect(g.id, e.target.value as BenefitId)}
-                        disabled={isLocked}
+                        disabled={isLocked || !winner}
                         className={clsx(
                           "w-full p-0.5 border rounded text-[10px] transition-colors",
-                          isLocked ? "bg-gray-100 text-gray-400 cursor-not-allowed" : "bg-white"
+                          (isLocked || !winner) ? "bg-gray-100 text-gray-400 cursor-not-allowed" : "bg-white"
                         )}
+                        // Hover Logic: When hovering the dropdown, try to show the selected benefit if any
+                        onMouseEnter={() => {
+                          const val = getGroupSelection(g.id);
+                          if (val) setHoveredBenefitId(val as BenefitId);
+                        }}
+                        onMouseLeave={() => setHoveredBenefitId(null)}
                       >
                         <option value="">Select Benefit...</option>
                         {BENEFITS.map(b => (
@@ -303,7 +285,12 @@ export const CommunityView: React.FC = () => {
                       const benefit = BENEFITS.find(b => b.id === item.benefitId);
                       const group = GROUPS.find(g => g.id === item.groupId);
                       return (
-                        <div key={index} className="flex items-center justify-between bg-white p-1 rounded shadow-sm border border-blue-100 text-[10px]">
+                        <div 
+                          key={index} 
+                          className="flex items-center justify-between bg-white p-1 rounded shadow-sm border border-blue-100 text-[10px] cursor-help"
+                          onMouseEnter={() => setHoveredBenefitId(item.benefitId)}
+                          onMouseLeave={() => setHoveredBenefitId(null)}
+                        >
                           <div className="flex flex-col">
                             <span className="font-bold text-blue-800">{benefit?.label}</span>
                             <span className="text-[9px] text-gray-500">by {group?.label}</span>
@@ -318,7 +305,7 @@ export const CommunityView: React.FC = () => {
                       );
                     })}
 
-                    {selectedBenefitsList.length >= winner.benefitsUnlocked && (
+                    {selectedBenefitsList.length >= benefitsUnlocked && (
                       <div className="text-[10px] text-red-500 font-bold mt-0.5 text-center border-t border-red-200 pt-0.5">
                         Limit Reached
                       </div>
@@ -330,61 +317,55 @@ export const CommunityView: React.FC = () => {
           </table>
         </div>
 
-        {/* RIGHT PANEL: Map Visualization */}
+        {/* RIGHT PANEL: Dynamic Info (Map/Benefit) */}
         <div className="flex-[2] flex flex-col gap-2 bg-white p-3 rounded-xl shadow-lg border border-gray-200 h-full">
-          <h2 className="text-lg font-bold text-gray-700 flex items-center gap-2 shrink-0">
-            <MapPin size={20} /> Regional Map
-          </h2>
           
-          <div className="relative flex-1 bg-gray-100 rounded-lg overflow-hidden border border-gray-300">
-            {/* Base Map Image */}
-            <img 
-              src="/regional-map.png" 
-              alt="Caseras Region Map" 
-              className="w-full h-full object-contain" 
-            />
-
-            {/* Overlays for Areas to Avoid */}
-            <div 
-              className={clsx(
-                "absolute top-[10%] right-[10%] w-[35%] h-[30%] rounded-full bg-red-500 blur-xl transition-opacity duration-500",
-                consensusAreaId === 'mountain' ? "opacity-40" : "opacity-0"
-              )}
-            />
-            <div 
-              className={clsx(
-                "absolute top-[15%] left-[5%] w-[35%] h-[35%] bg-red-500 blur-xl transition-opacity duration-500",
-                consensusAreaId === 'oldtown' ? "opacity-40" : "opacity-0"
-              )}
-            />
-            <div 
-              className={clsx(
-                "absolute bottom-[5%] left-[10%] w-[40%] h-[30%] rounded-full bg-blue-500 blur-xl transition-opacity duration-500",
-                consensusAreaId === 'aquifer' ? "opacity-40" : "opacity-0"
-              )}
-            />
-            <div 
-              className={clsx(
-                "absolute bottom-[10%] right-[10%] w-[25%] h-[25%] bg-purple-500 blur-xl transition-opacity duration-500",
-                consensusAreaId === 'campus' ? "opacity-40" : "opacity-0"
-              )}
-            />
-
-            {/* Legend Overlay */}
-            <div className="absolute bottom-2 right-2 bg-white/90 p-2 rounded text-xs shadow-sm">
-              <div className="font-bold mb-1">Restricted Zones</div>
-              {AREAS_TO_AVOID.map(a => (
-                <div key={a.id} className="flex items-center gap-2">
-                  <div className={clsx(
-                    "w-3 h-3 rounded-full",
-                    consensusAreaId === a.id ? "bg-red-500" : "bg-gray-300"
-                  )} />
-                  <span>{a.label}</span>
+          {activeBenefit ? (
+            // SHOW BENEFIT INFO
+            <div className="flex flex-col h-full animate-in fade-in duration-300">
+              <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2 shrink-0 mb-2 border-b pb-2">
+                <Info size={20} className="text-blue-500" /> Benefit Details
+              </h2>
+              <div className="flex-1 overflow-hidden flex flex-col gap-3">
+                <div className="relative h-48 shrink-0 bg-gray-100 rounded-lg overflow-hidden border">
+                  <img 
+                    src={activeBenefit.image} 
+                    alt={activeBenefit.label} 
+                    className="w-full h-full object-cover"
+                  />
                 </div>
-              ))}
+                <div className="overflow-y-auto">
+                  <h3 className="font-bold text-lg text-blue-700 mb-1">{activeBenefit.label}</h3>
+                  <p className="text-xs text-gray-600 leading-relaxed text-justify">
+                    {activeBenefit.description}
+                  </p>
+                </div>
+              </div>
             </div>
+          ) : (
+            // SHOW MINE VISUALIZATION (OR BASELINE)
+            <div className="flex flex-col h-full">
+              <h2 className="text-lg font-bold text-gray-700 flex items-center gap-2 shrink-0 mb-2">
+                <MapPin size={20} /> Projected Impact
+              </h2>
+              <div className="flex-1 bg-gray-100 rounded-lg overflow-hidden border border-gray-300 relative flex items-center justify-center">
+                <img 
+                  src={winner ? winner.image : '/baseline.png'} 
+                  alt={winner ? winner.label : 'Baseline'} 
+                  className={clsx("w-full h-full", (winner && winner.id !== 'oppose') ? "object-contain p-4" : "object-cover p-0")}
+                />
+                {winner && (
+                  <div className="absolute bottom-2 left-2 bg-white/90 px-2 py-1 rounded shadow text-[10px] font-bold">
+                    Winning Option: {winner.label}
+                  </div>
+                )}
+              </div>
+              <div className="mt-2 text-[10px] text-gray-400 text-center italic">
+                Hover over a selected benefit to see details.
+              </div>
+            </div>
+          )}
 
-          </div>
         </div>
     </div>
   );

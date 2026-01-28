@@ -1,14 +1,16 @@
-import React, { useState } from 'react';
-import { Droplets, Trash2, TrendingDown, DollarSign, Download, Settings } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Droplets, Trash2, DollarSign, Download, Settings, Users, CheckCircle } from 'lucide-react';
+import clsx from 'clsx';
 
 // --- Constants & Data ---
 
-// Mine Size Options (km2) -> Waste Generation (ton/year)
+// Mine Size Options (km2) -> Waste Generation (ton/year) & Image
 const MINE_SIZES = [
-  { value: 0.5, label: '0.5 km²', waste: 1500000 },
-  { value: 1.0, label: '1.0 km²', waste: 4500000 },
-  { value: 2.0, label: '2.0 km²', waste: 9000000 },
-  { value: 3.5, label: '3.5 km²', waste: 15000000 },
+  { value: 0.5, label: '0.5 km²', waste: 1500000, image: '/mining_1.png' },
+  { value: 1.0, label: '1.0 km²', waste: 4500000, image: '/mining_2.png' },
+  { value: 2.0, label: '2.0 km²', waste: 9000000, image: '/mining_3.png' },
+  { value: 4.0, label: '4.0 km²', waste: 15000000, image: '/mining_4.png' },
+  { value: 8.0, label: '8.0 km²', waste: 25000000, image: '/mining_5.png' },
 ];
 
 // Capacity Options (Mton/year) -> Water Consumption (m3/year)
@@ -17,6 +19,15 @@ const CAPACITIES = [
   { value: 1500000, label: '1.5 Mton/yr', water: 750000 },
   { value: 3000000, label: '3.0 Mton/yr', water: 1500000 },
   { value: 5000000, label: '5.0 Mton/yr', water: 2500000 },
+];
+
+// Community Benefits Costs
+const COMMUNITY_BENEFITS = [
+  { id: 'park', label: 'Park/Forestry', cost: 700000 },
+  { id: 'irrigation', label: 'Upgrade Irrigation System', cost: 900000 },
+  { id: 'canoe', label: 'Underground Canoe System', cost: 2500000 },
+  { id: 'energy', label: 'Energy Storage Program', cost: 3000000 },
+  { id: 'research', label: 'New Research Program', cost: 7000000 },
 ];
 
 // Parameters for Mitigation Model
@@ -36,44 +47,83 @@ const formatCurrency = (num: number) => {
 };
 
 export const DeveloperView: React.FC = () => {
-  // State
+  // State 1: Configuration
   const [selectedSize, setSelectedSize] = useState(MINE_SIZES[1]); // Default 1.0
   const [selectedCapacity, setSelectedCapacity] = useState(CAPACITIES[1]); // Default 1.5M
-  const [allocation, setAllocation] = useState(0.5); // 0.0 to 1.0 (Fraction for Water)
 
-  // 1. Calculate Budget (Available R&D)
+  // State 2: Budget Allocation (Raw Dollar Amounts)
+  const [allocWater, setAllocWater] = useState(0);
+  const [allocWaste, setAllocWaste] = useState(0);
+  // Replaced AllocCommunity with explicitly selected items
+  const [selectedBenefits, setSelectedBenefits] = useState<string[]>([]);
+
+  // 1. Calculate Total Available Budget
   const budgetFromSize = 1500000 * selectedSize.value;
-  // Note: "1.5 * capacity rate value". Assuming capacity value is the raw number (e.g. 500,000).
   const budgetFromCapacity = 1.5 * selectedCapacity.value; 
-  const totalBudgetRaw = budgetFromSize + budgetFromCapacity;
-  
-  // Convert to Millions for the formula inputs
-  const X_million = totalBudgetRaw / 1000000;
+  const totalBudget = budgetFromSize + budgetFromCapacity;
 
-  // 2. Budget Allocation
-  // Slider Value (allocation) now represents WASTE FRACTION (0 = 100% Water, 1 = 100% Waste)
-  const X_waste = allocation * X_million;
-  const X_water = (1 - allocation) * X_million;
+  // Reset allocations when Total Budget changes (to prevent overflow)
+  useEffect(() => {
+    setAllocWater(0);
+    setAllocWaste(0);
+    setSelectedBenefits([]);
+  }, [totalBudget]);
+
+  // Derived Budget State
+  // Calculate Community Spend from checkboxes, NOT slider
+  const communitySpend = selectedBenefits.reduce((sum, id) => {
+    const benefit = COMMUNITY_BENEFITS.find(b => b.id === id);
+    return sum + (benefit ? benefit.cost : 0);
+  }, 0);
+
+  const totalAllocated = allocWater + allocWaste + communitySpend;
+  const remainingBudget = totalBudget - totalAllocated;
 
   // 3. Environmental Model Calculations
-  
   // Water
   const W0 = selectedCapacity.water;
   const Wmin = ALPHA_W * W0;
-  // Formula: W = Wmin + (W0 - Wmin) * exp(-kW * XW)
-  const W_final = Wmin + (W0 - Wmin) * Math.exp(-K_W * X_water);
+  // Formula inputs require Millions
+  const X_water_million = allocWater / 1000000;
+  const W_final = Wmin + (W0 - Wmin) * Math.exp(-K_W * X_water_million);
   const waterReduction = ((W0 - W_final) / W0) * 100;
 
   // Waste
   const S0 = selectedSize.waste;
   const Smin = ALPHA_S * S0;
-  // Formula: S = Smin + (S0 - Smin) * exp(-kS * XS)
-  const S_final = Smin + (S0 - Smin) * Math.exp(-K_S * X_waste);
+  const X_waste_million = allocWaste / 1000000;
+  const S_final = Smin + (S0 - Smin) * Math.exp(-K_S * X_waste_million);
   const wasteReduction = ((S0 - S_final) / S0) * 100;
+
+  // Handlers for Sliders (Prevent Overspending)
+  const handleSliderChange = (setter: React.Dispatch<React.SetStateAction<number>>, newValue: number, currentVal: number) => {
+    const diff = newValue - currentVal;
+    if (remainingBudget - diff >= 0) {
+      setter(newValue);
+    } else {
+      // Cap at max remaining
+      setter(currentVal + remainingBudget);
+    }
+  };
+
+  const toggleBenefit = (id: string, cost: number) => {
+    if (selectedBenefits.includes(id)) {
+      // Remove
+      setSelectedBenefits(prev => prev.filter(b => b !== id));
+    } else {
+      // Add (Check budget first)
+      if (remainingBudget >= cost) {
+        setSelectedBenefits(prev => [...prev, id]);
+      } else {
+        alert("Not enough budget remaining! Increase Total Budget or reduce other allocations.");
+      }
+    }
+  };
 
   // Handler for CSV Export
   const handleDownloadCSV = () => {
-    const csvContent = `size_km2,capacity_mton,total_budget,water_alloc_percent,waste_alloc_percent,final_water_m3,final_waste_ton\n${selectedSize.value},${selectedCapacity.value},${totalBudgetRaw},${((1 - allocation) * 100).toFixed(0)},${(allocation * 100).toFixed(0)},${W_final.toFixed(0)},${S_final.toFixed(0)}`;
+    const benefitIdsStr = selectedBenefits.join('|');
+    const csvContent = `size_km2,capacity_mton,total_budget,water_alloc,waste_alloc,community_alloc,final_water_m3,final_waste_ton,selected_benefits\n${selectedSize.value},${selectedCapacity.value},${totalBudget},${allocWater},${allocWaste},${communitySpend},${W_final.toFixed(0)},${S_final.toFixed(0)},${benefitIdsStr}`;
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -85,204 +135,165 @@ export const DeveloperView: React.FC = () => {
   };
 
   return (
-    <div className="flex-1 flex gap-6 min-h-0 overflow-hidden relative font-sans text-gray-900">
+    <div className="flex-1 flex gap-4 min-h-0 overflow-hidden relative font-sans text-gray-900 h-full">
       
-      {/* LEFT PANEL: Inputs & Controls */}
-      <div className="flex-[2] bg-white rounded-xl shadow-lg border border-gray-200 p-6 flex flex-col gap-8 overflow-auto">
+      {/* LEFT PANEL: Inputs & Controls (Scrollable) */}
+      <div className="flex-[2] bg-white rounded-xl shadow-lg border border-gray-200 p-4 flex flex-col gap-4 overflow-y-auto h-full">
         
-        <div className="border-b pb-4">
-          <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2 mb-2">
-            <Settings className="text-gray-600" /> Mining Configuration
+        <div className="border-b pb-2">
+          <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+            <Settings className="text-gray-600" size={20} /> Configuration
           </h2>
-          <p className="text-sm text-gray-500">Step 1: Define operational parameters to determine baselines and budget.</p>
         </div>
 
         {/* Step 1: Dropdowns */}
-        <div className="grid grid-cols-2 gap-6">
-          <div className="flex flex-col gap-2">
-            <label className="font-bold text-gray-700">Mine Size (km²)</label>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="flex flex-col gap-1">
+            <label className="font-bold text-xs text-gray-700">Mine Size</label>
             <select 
               value={selectedSize.value}
               onChange={(e) => setSelectedSize(MINE_SIZES.find(s => s.value === Number(e.target.value))!)}
-              className="p-3 border rounded-lg bg-gray-50 focus:ring-2 focus:ring-blue-500 outline-none"
+              className="p-2 border rounded bg-gray-50 text-sm"
             >
               {MINE_SIZES.map(s => (
                 <option key={s.value} value={s.value}>{s.label}</option>
               ))}
             </select>
-            <div className="text-xs text-gray-500 mt-1">
-              Baseline Waste: <span className="font-mono font-bold text-gray-700">{formatNumber(selectedSize.waste)}</span> ton/yr
-            </div>
           </div>
 
-          <div className="flex flex-col gap-2">
-            <label className="font-bold text-gray-700">Production Capacity</label>
+          <div className="flex flex-col gap-1">
+            <label className="font-bold text-xs text-gray-700">Capacity</label>
             <select 
               value={selectedCapacity.value}
               onChange={(e) => setSelectedCapacity(CAPACITIES.find(c => c.value === Number(e.target.value))!)}
-              className="p-3 border rounded-lg bg-gray-50 focus:ring-2 focus:ring-blue-500 outline-none"
+              className="p-2 border rounded bg-gray-50 text-sm"
             >
               {CAPACITIES.map(c => (
                 <option key={c.value} value={c.value}>{c.label}</option>
               ))}
             </select>
-            <div className="text-xs text-gray-500 mt-1">
-              Baseline Water: <span className="font-mono font-bold text-gray-700">{formatNumber(selectedCapacity.water)}</span> m³/yr
-            </div>
           </div>
         </div>
 
         {/* Budget Display */}
-        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-xl border border-blue-100 flex flex-col items-center justify-center text-center">
-          <div className="text-sm font-bold text-blue-800 uppercase tracking-wide mb-1">Total R&D Budget Available</div>
-          <div className="text-4xl font-extrabold text-blue-900 flex items-center gap-1">
-            <DollarSign className="w-8 h-8" />
-            {formatNumber(totalBudgetRaw)}
+        <div className="bg-blue-50 p-4 rounded-lg border border-blue-100 flex flex-col items-center justify-center text-center shrink-0">
+          <div className="text-xs font-bold text-blue-800 uppercase tracking-wide">Total R&D Budget</div>
+          <div className="text-2xl font-extrabold text-blue-900 flex items-center gap-1">
+            <DollarSign size={20} />
+            {formatNumber(totalBudget)}
           </div>
-          <div className="text-xs text-blue-600 mt-2">
-            From Size: {formatCurrency(budgetFromSize)} + From Capacity: {formatCurrency(budgetFromCapacity)}
+          <div className={clsx("text-xs font-bold mt-1 px-2 py-0.5 rounded-full", remainingBudget > 0 ? "bg-green-100 text-green-700" : "bg-gray-200 text-gray-500")}>
+            Remaining: {formatCurrency(remainingBudget)}
           </div>
         </div>
 
-        {/* Step 2: Allocation Slider */}
-        <div className="flex flex-col gap-4 pt-4 border-t">
-          <div className="flex justify-between items-end">
-             <div>
-                <h3 className="font-bold text-gray-800 text-lg">Budget Allocation</h3>
-                <p className="text-sm text-gray-500">Step 2: Distribute budget between Water & Waste mitigation.</p>
-             </div>
-             <div className="text-sm font-mono bg-gray-100 px-2 py-1 rounded">
-                r = {(allocation).toFixed(2)}
-             </div>
-          </div>
-
-          <div className="relative h-12 flex items-center">
-            {/* Slider Track Label Left */}
-            <div className="absolute left-0 -top-6 text-blue-600 font-bold text-sm">Water Mitigation</div>
-            {/* Slider Track Label Right */}
-            <div className="absolute right-0 -top-6 text-orange-600 font-bold text-sm">Waste Management</div>
-
+        {/* Step 2: 3 Independent Sliders */}
+        <div className="flex flex-col gap-6 border-t pt-4">
+          
+          {/* Slider 1: Water */}
+          <div className="flex flex-col gap-1">
+            <div className="flex justify-between text-xs font-bold">
+              <span className="text-blue-600 flex items-center gap-1"><Droplets size={12}/> Water Mitigation</span>
+              <span>{formatCurrency(allocWater)}</span>
+            </div>
             <input 
-              type="range" 
-              min="0" 
-              max="1" 
-              step="0.01"
-              value={allocation}
-              onChange={(e) => setAllocation(Number(e.target.value))}
-              className="w-full h-3 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-gray-800"
+              type="range" min="0" max={totalBudget} step="50000"
+              value={allocWater}
+              onChange={(e) => handleSliderChange(setAllocWater, Number(e.target.value), allocWater)}
+              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
             />
+            <div className="flex justify-between text-[10px] text-gray-500">
+               <span>Baseline: {formatNumber(W0)}</span>
+               <span className="font-bold text-blue-600">Result: {formatNumber(W_final)} m³ ({waterReduction.toFixed(0)}% ↓)</span>
+            </div>
           </div>
 
-          <div className="flex justify-between text-sm font-medium">
-             <div className="text-blue-700">{((1 - allocation) * 100).toFixed(0)}% (${formatNumber(X_water * 1000000)})</div>
-             <div className="text-orange-700">{(allocation * 100).toFixed(0)}% (${formatNumber(X_waste * 1000000)})</div>
+          {/* Slider 2: Waste */}
+          <div className="flex flex-col gap-1">
+            <div className="flex justify-between text-xs font-bold">
+              <span className="text-orange-600 flex items-center gap-1"><Trash2 size={12}/> Waste Mgmt</span>
+              <span>{formatCurrency(allocWaste)}</span>
+            </div>
+            <input 
+              type="range" min="0" max={totalBudget} step="50000"
+              value={allocWaste}
+              onChange={(e) => handleSliderChange(setAllocWaste, Number(e.target.value), allocWaste)}
+              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-orange-600"
+            />
+            <div className="flex justify-between text-[10px] text-gray-500">
+               <span>Baseline: {formatNumber(S0)}</span>
+               <span className="font-bold text-orange-600">Result: {formatNumber(S_final)} tons ({wasteReduction.toFixed(0)}% ↓)</span>
+            </div>
           </div>
+
+          {/* Slider 3: Community (Read-Only Visualization of Selected Items) */}
+          <div className="flex flex-col gap-1">
+            <div className="flex justify-between text-xs font-bold">
+              <span className="text-green-600 flex items-center gap-1"><Users size={12}/> Community Benefits</span>
+              <span>{formatCurrency(communitySpend)}</span>
+            </div>
+            
+            {/* Visual Budget Bar (Not a slider anymore, just a meter) */}
+            <div className="w-full h-2 bg-gray-200 rounded-lg overflow-hidden">
+               <div className="h-full bg-green-500 transition-all" style={{ width: `${(communitySpend / totalBudget) * 100}%` }} />
+            </div>
+            
+            {/* Community Benefits Selection List */}
+            <div className="grid grid-cols-1 gap-1 mt-2">
+              {COMMUNITY_BENEFITS.map(benefit => {
+                const isSelected = selectedBenefits.includes(benefit.id);
+                const canAfford = remainingBudget >= benefit.cost;
+                
+                return (
+                  <div 
+                    key={benefit.id} 
+                    onClick={() => toggleBenefit(benefit.id, benefit.cost)}
+                    className={clsx(
+                      "flex justify-between items-center p-1.5 rounded text-[10px] border transition-colors cursor-pointer select-none", 
+                      isSelected ? "bg-green-100 border-green-300 text-green-900" : 
+                      canAfford ? "bg-white border-gray-200 hover:bg-gray-50" : "bg-gray-100 border-gray-200 text-gray-400 opacity-60"
+                    )}
+                  >
+                    <div className="flex items-center gap-2">
+                      <div className={clsx("w-3 h-3 rounded border flex items-center justify-center", isSelected ? "bg-green-600 border-green-600" : "border-gray-400")}>
+                        {isSelected && <CheckCircle size={8} className="text-white" />}
+                      </div>
+                      <span className="font-medium">{benefit.label}</span>
+                    </div>
+                    <span className="font-mono">{formatCurrency(benefit.cost)}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
         </div>
 
         <button 
           onClick={handleDownloadCSV}
-          className="mt-auto bg-green-600 text-white px-6 py-4 rounded-xl font-bold shadow-lg hover:bg-green-700 flex items-center justify-center gap-2 transition-transform active:scale-95"
+          className="mt-auto bg-gray-800 text-white px-4 py-3 rounded-lg font-bold shadow hover:bg-black flex items-center justify-center gap-2 text-sm"
         >
-          <Download size={20} /> Submit & Export Results
+          <Download size={16} /> Submit Results
         </button>
 
       </div>
 
-      {/* RIGHT PANEL: Results Visualization */}
-      <div className="flex-[3] flex flex-col gap-6">
+      {/* RIGHT PANEL: Dynamic Visualization */}
+      <div className="flex-[3] bg-gray-100 rounded-xl border border-gray-300 overflow-hidden relative flex items-center justify-center">
+        {/* Dynamic Image */}
+        <img 
+          src={selectedSize.image} 
+          alt={`Mine Size ${selectedSize.label}`}
+          className="w-full h-full object-contain p-4"
+        />
         
-        {/* Water Result Card */}
-        <div className="flex-1 bg-white rounded-xl shadow-lg border border-blue-200 p-6 flex flex-col justify-between relative overflow-hidden group">
-          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-            <Droplets size={120} className="text-blue-500" />
-          </div>
-          
-          <div>
-            <h3 className="text-xl font-bold text-gray-800 flex items-center gap-2 mb-1">
-              <Droplets className="text-blue-500" /> Water Consumption
-            </h3>
-            <p className="text-sm text-gray-500">Metric: m³ / year</p>
-          </div>
-
-          <div className="flex items-end gap-8 mt-4">
-            <div>
-              <div className="text-xs text-gray-400 uppercase font-bold mb-1">Baseline</div>
-              <div className="text-2xl text-gray-400 font-mono decoration-slate-400 line-through">
-                {formatNumber(W0)}
-              </div>
-            </div>
-            
-            <div className="mb-2">
-              <TrendingDown className="text-green-500 w-8 h-8 animate-bounce" />
-            </div>
-
-            <div>
-              <div className="text-xs text-blue-600 uppercase font-bold mb-1">Final Result</div>
-              <div className="text-5xl font-extrabold text-blue-600 font-mono">
-                {formatNumber(W_final)}
-              </div>
-              <div className="text-sm text-green-600 font-bold mt-1">
-                -{waterReduction.toFixed(1)}% Reduction
-              </div>
-            </div>
-          </div>
-
-          {/* Visual Bar */}
-          <div className="w-full bg-gray-100 h-4 rounded-full mt-6 overflow-hidden relative">
-            {/* Baseline Marker (Full Width implicitly) */}
-            <div 
-              className="h-full bg-blue-500 transition-all duration-700 ease-out"
-              style={{ width: `${(W_final / W0) * 100}%` }}
-            />
-          </div>
+        <div className="absolute top-4 right-4 bg-white/90 p-2 rounded shadow text-xs">
+          <div className="font-bold mb-1">Visualizing:</div>
+          <div>Size: {selectedSize.label}</div>
+          <div>Capacity: {selectedCapacity.label}</div>
         </div>
-
-        {/* Waste Result Card */}
-        <div className="flex-1 bg-white rounded-xl shadow-lg border border-orange-200 p-6 flex flex-col justify-between relative overflow-hidden group">
-          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-            <Trash2 size={120} className="text-orange-500" />
-          </div>
-
-          <div>
-            <h3 className="text-xl font-bold text-gray-800 flex items-center gap-2 mb-1">
-              <Trash2 className="text-orange-500" /> Waste Generation
-            </h3>
-            <p className="text-sm text-gray-500">Metric: ton / year</p>
-          </div>
-
-          <div className="flex items-end gap-8 mt-4">
-             <div>
-              <div className="text-xs text-gray-400 uppercase font-bold mb-1">Baseline</div>
-              <div className="text-2xl text-gray-400 font-mono decoration-slate-400 line-through">
-                {formatNumber(S0)}
-              </div>
-            </div>
-            
-            <div className="mb-2">
-              <TrendingDown className="text-green-500 w-8 h-8 animate-bounce" />
-            </div>
-
-            <div>
-              <div className="text-xs text-orange-600 uppercase font-bold mb-1">Final Result</div>
-              <div className="text-5xl font-extrabold text-orange-600 font-mono">
-                {formatNumber(S_final)}
-              </div>
-              <div className="text-sm text-green-600 font-bold mt-1">
-                -{wasteReduction.toFixed(1)}% Reduction
-              </div>
-            </div>
-          </div>
-
-          {/* Visual Bar */}
-          <div className="w-full bg-gray-100 h-4 rounded-full mt-6 overflow-hidden relative">
-            <div 
-              className="h-full bg-orange-500 transition-all duration-700 ease-out"
-              style={{ width: `${(S_final / S0) * 100}%` }}
-            />
-          </div>
-        </div>
-
       </div>
+
     </div>
   );
 };

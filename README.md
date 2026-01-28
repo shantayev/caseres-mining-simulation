@@ -46,6 +46,11 @@ To ensure role separation, each interface is protected by a PIN code.
     1.  **Water Constraint**: If Community wants *Canoe/Irrigation*, Mining Water must be **$\le$ 800,000 m³**.
     2.  **Waste Constraint**: If Community wants *Park/Energy*, Mining Waste must be **$\le$ 5,000,000 tons**.
     3.  **Size Consensus**: Checks if both parties aimed for a similar Mine Size (Gap $\le$ 2 steps).
+    4.  **Benefit Funding**: Verifies if Developer budget covers all requested Community benefits.
+*   **Negotiation Dashboard**:
+    *   **Scatter Plot**: Visualizes all 41 possible Community Benefit combinations (Cost vs Utility).
+    *   **Community Choice**: Marks the specific combination chosen by the community (Red Star).
+    *   **Developer Budget**: Displays the Miner's R&D budget limit (Green Dashed Line).
 *   **Result**: Displays **Optimal** (Green), **Suboptimal** (Yellow), or **Infeasible** (Red).
 
 ---
