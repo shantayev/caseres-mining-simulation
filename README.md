@@ -79,3 +79,13 @@ The site is hosted on **Vercel** and connected to the GitHub repository.
 ### Troubleshooting
 *   **"Infeasible" Result?** The Developer likely needs to allocate more budget to the specific constraint (Water or Waste) requested by the Community benefits.
 *   **CSV Error?** Ensure users do not rename or modify the CSV files before uploading.
+
+---
+
+## Future Work — Action Items for Further Development
+
+1. **Add air quality as a core decision lever.** Introduce a developer choice for extraction and refining technologies, each with a measurable impact on an air quality score. Include an air quality remediation lever to allow mitigation through investment or policy decisions, completing the three primary environmental factors in the simulation (water, waste, air).
+
+2. **Explicitly link environmental impacts to community benefits.** Forestry initiatives should improve air quality outcomes. Water consumption should directly influence irrigation capacity and underground canoe or water-based tourism options. Waste generation should affect land use constraints and the viability of advanced manufacturing or industrial redevelopment.
+
+3. **Implement spatial logic connecting production activities to impacts.** The location of extraction, processing, and waste handling should determine which communities are affected and which mitigation or benefit options are available.
