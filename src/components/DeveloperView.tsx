@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { Droplets, Trash2, DollarSign, Download, Settings, Users, CheckCircle } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -36,6 +36,10 @@ const ALPHA_S = 0.2; // Min fraction of baseline waste (20%)
 const K_W = 0.5;     // Mitigation effectiveness rate for water
 const K_S = 0.5;     // Mitigation effectiveness rate for waste
 
+// Targets (match Admin feasibility thresholds)
+const WATER_TARGET_M3 = 800000;
+const WASTE_TARGET_TON = 5000000;
+
 // --- Helper Functions ---
 
 const formatNumber = (num: number) => {
@@ -44,6 +48,28 @@ const formatNumber = (num: number) => {
 
 const formatCurrency = (num: number) => {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(num);
+};
+
+const requiredAllocForTarget = (params: { baseline: number; min: number; k: number; target: number }) => {
+  const { baseline, min, k, target } = params;
+
+  // Already compliant without mitigation spend.
+  if (target >= baseline) return 0;
+
+  // Model can't go below its asymptote.
+  if (target <= min) return Number.POSITIVE_INFINITY;
+
+  const denom = baseline - min;
+  if (denom <= 0) return Number.POSITIVE_INFINITY;
+
+  const ratio = (target - min) / denom; // (0, 1)
+  if (!(ratio > 0 && ratio < 1)) return Number.POSITIVE_INFINITY;
+
+  const xMillions = -(1 / k) * Math.log(ratio);
+  const alloc = xMillions * 1_000_000;
+
+  // Guard against tiny negatives from floating point.
+  return Math.max(0, alloc);
 };
 
 export const DeveloperView: React.FC = () => {
@@ -56,18 +82,13 @@ export const DeveloperView: React.FC = () => {
   const [allocWaste, setAllocWaste] = useState(0);
   // Replaced AllocCommunity with explicitly selected items
   const [selectedBenefits, setSelectedBenefits] = useState<string[]>([]);
+  const [waterMinWarning, setWaterMinWarning] = useState<string | null>(null);
+  const [wasteMinWarning, setWasteMinWarning] = useState<string | null>(null);
 
   // 1. Calculate Total Available Budget
   const budgetFromSize = 1500000 * selectedSize.value;
   const budgetFromCapacity = 1.5 * selectedCapacity.value; 
   const totalBudget = budgetFromSize + budgetFromCapacity;
-
-  // Reset allocations when Total Budget changes (to prevent overflow)
-  useEffect(() => {
-    setAllocWater(0);
-    setAllocWaste(0);
-    setSelectedBenefits([]);
-  }, [totalBudget]);
 
   // Derived Budget State
   // Calculate Community Spend from checkboxes, NOT slider
@@ -94,6 +115,62 @@ export const DeveloperView: React.FC = () => {
   const X_waste_million = allocWaste / 1000000;
   const S_final = Smin + (S0 - Smin) * Math.exp(-K_S * X_waste_million);
   const wasteReduction = ((S0 - S_final) / S0) * 100;
+
+  const requiredWaterAlloc = useMemo(() => {
+    return requiredAllocForTarget({ baseline: W0, min: Wmin, k: K_W, target: WATER_TARGET_M3 });
+  }, [W0, Wmin]);
+
+  const requiredWasteAlloc = useMemo(() => {
+    return requiredAllocForTarget({ baseline: S0, min: Smin, k: K_S, target: WASTE_TARGET_TON });
+  }, [S0, Smin]);
+
+  const clampToStep = (value: number) => {
+    const step = 50_000;
+    return Math.max(0, Math.round(value / step) * step);
+  };
+
+  // Ensure allocations never exceed total budget (e.g., after config changes).
+  useEffect(() => {
+    setAllocWater(prev => Math.min(prev, Math.max(0, totalBudget - (allocWaste + communitySpend))));
+    setAllocWaste(prev => Math.min(prev, Math.max(0, totalBudget - (allocWater + communitySpend))));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [totalBudget]);
+
+  // Auto-set minimum required water mitigation when capacity changes.
+  useEffect(() => {
+    setWaterMinWarning(null);
+
+    // Clear community selections on config changes to avoid accidental overspend.
+    setSelectedBenefits([]);
+
+    const maxAllowed = Math.max(0, totalBudget - allocWaste);
+    const needed = requiredWaterAlloc;
+    const clampedNeeded = clampToStep(Math.min(needed, maxAllowed));
+    setAllocWater(clampedNeeded);
+
+    if (!Number.isFinite(needed) || needed > maxAllowed + 1) {
+      setWaterMinWarning('Cannot reach water threshold with current budget (given other allocations).');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCapacity.value]);
+
+  // Auto-set minimum required waste mitigation when mine size changes.
+  useEffect(() => {
+    setWasteMinWarning(null);
+
+    // Clear community selections on config changes to avoid accidental overspend.
+    setSelectedBenefits([]);
+
+    const maxAllowed = Math.max(0, totalBudget - allocWater);
+    const needed = requiredWasteAlloc;
+    const clampedNeeded = clampToStep(Math.min(needed, maxAllowed));
+    setAllocWaste(clampedNeeded);
+
+    if (!Number.isFinite(needed) || needed > maxAllowed + 1) {
+      setWasteMinWarning('Cannot reach waste threshold with current budget (given other allocations).');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSize.value]);
 
   // Handlers for Sliders (Prevent Overspending)
   const handleSliderChange = (setter: React.Dispatch<React.SetStateAction<number>>, newValue: number, currentVal: number) => {
@@ -203,8 +280,15 @@ export const DeveloperView: React.FC = () => {
               className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
             />
             <div className="flex justify-between text-[10px] text-gray-500">
-               <span>Baseline: {formatNumber(W0)}</span>
+               <span>Baseline (spend): {formatCurrency(0)}</span>
                <span className="font-bold text-blue-600">Result: {formatNumber(W_final)} m³ ({waterReduction.toFixed(0)}% ↓)</span>
+            </div>
+            <div className="flex justify-between text-[10px] text-gray-500">
+              <span>
+                Min required (≤ {formatNumber(WATER_TARGET_M3)} m³):{' '}
+                {Number.isFinite(requiredWaterAlloc) ? formatCurrency(clampToStep(requiredWaterAlloc)) : 'N/A'}
+              </span>
+              {waterMinWarning && <span className="font-bold text-red-600">{waterMinWarning}</span>}
             </div>
           </div>
 
@@ -221,8 +305,15 @@ export const DeveloperView: React.FC = () => {
               className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-orange-600"
             />
             <div className="flex justify-between text-[10px] text-gray-500">
-               <span>Baseline: {formatNumber(S0)}</span>
+               <span>Baseline (spend): {formatCurrency(0)}</span>
                <span className="font-bold text-orange-600">Result: {formatNumber(S_final)} tons ({wasteReduction.toFixed(0)}% ↓)</span>
+            </div>
+            <div className="flex justify-between text-[10px] text-gray-500">
+              <span>
+                Min required (≤ {formatNumber(WASTE_TARGET_TON)} tons):{' '}
+                {Number.isFinite(requiredWasteAlloc) ? formatCurrency(clampToStep(requiredWasteAlloc)) : 'N/A'}
+              </span>
+              {wasteMinWarning && <span className="font-bold text-red-600">{wasteMinWarning}</span>}
             </div>
           </div>
 
