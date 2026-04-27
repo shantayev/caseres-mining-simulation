@@ -36,6 +36,9 @@ const ALPHA_S = 0.2; // Min fraction of baseline waste (20%)
 const K_W = 0.5;     // Mitigation effectiveness rate for water
 const K_S = 0.5;     // Mitigation effectiveness rate for waste
 
+// Slider domains (final outcome values)
+const WATER_SLIDER_MAX_M3 = 2_500_000;
+const WASTE_SLIDER_MAX_TON = 25_000_000;
 type AirProcessId = 'extraction' | 'refining' | 'processing' | 'advanced_manufacturing';
 
 const AIR_PROCESSES: {
@@ -99,6 +102,35 @@ const formatCurrency = (num: number) => {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(num);
 };
 
+const requiredAllocForFinalTarget = (params: { baseline: number; min: number; k: number; target: number }) => {
+  const { baseline, min, k, target } = params;
+
+  // Already compliant without mitigation spend.
+  if (target >= baseline) return 0;
+
+  // Model can't go below its asymptote.
+  if (target <= min) return Number.POSITIVE_INFINITY;
+
+  const denom = baseline - min;
+  if (denom <= 0) return Number.POSITIVE_INFINITY;
+
+  const ratio = (target - min) / denom; // (0, 1)
+  if (!(ratio > 0 && ratio < 1)) return Number.POSITIVE_INFINITY;
+
+  const xMillions = -(1 / k) * Math.log(ratio);
+  const alloc = xMillions * 1_000_000;
+
+  // Guard against tiny negatives from floating point.
+  return Math.max(0, alloc);
+};
+
+const finalForAlloc = (params: { baseline: number; min: number; k: number; alloc: number }) => {
+  const { baseline, min, k, alloc } = params;
+  return min + (baseline - min) * Math.exp(-k * (alloc / 1_000_000));
+};
+
+const clampNumber = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+
 export const DeveloperView: React.FC = () => {
   // State 1: Configuration
   const [selectedSize, setSelectedSize] = useState(MINE_SIZES[1]); // Default 1.0
@@ -110,6 +142,11 @@ export const DeveloperView: React.FC = () => {
   // Replaced AllocCommunity with explicitly selected items
   const [selectedBenefits, setSelectedBenefits] = useState<string[]>([]);
 
+  // Outcome slider state (final values)
+  const [targetWaterM3, setTargetWaterM3] = useState<number>(CAPACITIES[1].water);
+  const [targetWasteTon, setTargetWasteTon] = useState<number>(MINE_SIZES[1].waste);
+  const [waterClamped, setWaterClamped] = useState(false);
+  const [wasteClamped, setWasteClamped] = useState(false);
   // State 3: Air Quality (toggle + process selection)
   const [showAirQuality, setShowAirQuality] = useState(false);
   const [selectedAirProcessId, setSelectedAirProcessId] = useState<AirProcessId>('extraction');
@@ -146,15 +183,68 @@ export const DeveloperView: React.FC = () => {
   const S_final = Smin + (S0 - Smin) * Math.exp(-K_S * X_waste_million);
   const wasteReduction = ((S0 - S_final) / S0) * 100;
 
-  // Handlers for Sliders (Prevent Overspending)
-  const handleSliderChange = (setter: React.Dispatch<React.SetStateAction<number>>, newValue: number, currentVal: number) => {
-    const diff = newValue - currentVal;
-    if (remainingBudget - diff >= 0) {
-      setter(newValue);
-    } else {
-      // Cap at max remaining
-      setter(currentVal + remainingBudget);
-    }
+  const clampAllocToStep = (value: number) => {
+    const step = 50_000;
+    return Math.max(0, Math.round(value / step) * step);
+  };
+
+  const clampWaterTargetStep = (value: number) => {
+    const step = 10_000;
+    return Math.round(value / step) * step;
+  };
+
+  const clampWasteTargetStep = (value: number) => {
+    const step = 50_000;
+    return Math.round(value / step) * step;
+  };
+
+  const handleCapacityChange = (capacityValue: number) => {
+    const cap = CAPACITIES.find(c => c.value === capacityValue);
+    if (!cap) return;
+
+    setSelectedCapacity(cap);
+    setTargetWaterM3(cap.water);
+    setAllocWater(0);
+    setWaterClamped(false);
+  };
+
+  const handleSizeChange = (sizeValue: number) => {
+    const size = MINE_SIZES.find(s => s.value === sizeValue);
+    if (!size) return;
+
+    setSelectedSize(size);
+    setTargetWasteTon(size.waste);
+    setAllocWaste(0);
+    setWasteClamped(false);
+  };
+
+  const applyWaterTarget = (desiredTargetM3: number) => {
+    const desired = clampNumber(desiredTargetM3, 0, WATER_SLIDER_MAX_M3);
+    const allocNeeded = requiredAllocForFinalTarget({ baseline: W0, min: Wmin, k: K_W, target: desired });
+
+    // Max water allocation given other spends (allows reallocation within water lever).
+    const maxAllowed = Math.max(0, totalBudget - (allocWaste + communitySpend));
+    const allocCapRaw = Number.isFinite(allocNeeded) ? Math.min(allocNeeded, maxAllowed) : maxAllowed;
+    const allocCap = clampAllocToStep(allocCapRaw);
+
+    const achievable = finalForAlloc({ baseline: W0, min: Wmin, k: K_W, alloc: allocCap });
+    setAllocWater(allocCap);
+    setTargetWaterM3(clampWaterTargetStep(achievable));
+    setWaterClamped(!Number.isFinite(allocNeeded) || allocNeeded > maxAllowed);
+  };
+
+  const applyWasteTarget = (desiredTargetTon: number) => {
+    const desired = clampNumber(desiredTargetTon, 0, WASTE_SLIDER_MAX_TON);
+    const allocNeeded = requiredAllocForFinalTarget({ baseline: S0, min: Smin, k: K_S, target: desired });
+
+    const maxAllowed = Math.max(0, totalBudget - (allocWater + communitySpend));
+    const allocCapRaw = Number.isFinite(allocNeeded) ? Math.min(allocNeeded, maxAllowed) : maxAllowed;
+    const allocCap = clampAllocToStep(allocCapRaw);
+
+    const achievable = finalForAlloc({ baseline: S0, min: Smin, k: K_S, alloc: allocCap });
+    setAllocWaste(allocCap);
+    setTargetWasteTon(clampWasteTargetStep(achievable));
+    setWasteClamped(!Number.isFinite(allocNeeded) || allocNeeded > maxAllowed);
   };
 
   const toggleBenefit = (id: string, cost: number) => {
@@ -169,26 +259,6 @@ export const DeveloperView: React.FC = () => {
         alert("Not enough budget remaining! Increase Total Budget or reduce other allocations.");
       }
     }
-  };
-
-  const handleSizeChange = (sizeValue: number) => {
-    const next = MINE_SIZES.find(s => s.value === sizeValue);
-    if (!next) return;
-
-    setSelectedSize(next);
-    setAllocWater(0);
-    setAllocWaste(0);
-    setSelectedBenefits([]);
-  };
-
-  const handleCapacityChange = (capacityValue: number) => {
-    const next = CAPACITIES.find(c => c.value === capacityValue);
-    if (!next) return;
-
-    setSelectedCapacity(next);
-    setAllocWater(0);
-    setAllocWaste(0);
-    setSelectedBenefits([]);
   };
 
   const handleAirProcessChange = (nextId: AirProcessId) => {
@@ -345,36 +415,46 @@ export const DeveloperView: React.FC = () => {
           <div className="flex flex-col gap-1">
             <div className="flex justify-between text-xs font-bold">
               <span className="text-blue-600 flex items-center gap-1"><Droplets size={12}/> Water Mitigation</span>
-              <span>{formatCurrency(allocWater)}</span>
+              <span className="font-mono">{formatNumber(targetWaterM3)} m³</span>
             </div>
             <input 
-              type="range" min="0" max={totalBudget} step="50000"
-              value={allocWater}
-              onChange={(e) => handleSliderChange(setAllocWater, Number(e.target.value), allocWater)}
+              type="range" min="0" max={WATER_SLIDER_MAX_M3} step="10000"
+              value={targetWaterM3}
+              onChange={(e) => applyWaterTarget(Number(e.target.value))}
               className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
             />
             <div className="flex justify-between text-[10px] text-gray-500">
-               <span>Baseline: {formatNumber(W0)}</span>
+               <span>Mitigation spend: {formatCurrency(allocWater)}</span>
                <span className="font-bold text-blue-600">Result: {formatNumber(W_final)} m³ ({waterReduction.toFixed(0)}% ↓)</span>
             </div>
+            {waterClamped && (
+              <div className="text-[10px] font-bold text-red-600">
+                Budget limit reached — slider clamped to achievable water outcome.
+              </div>
+            )}
           </div>
 
           {/* Slider 2: Waste */}
           <div className="flex flex-col gap-1">
             <div className="flex justify-between text-xs font-bold">
               <span className="text-orange-600 flex items-center gap-1"><Trash2 size={12}/> Waste Mgmt</span>
-              <span>{formatCurrency(allocWaste)}</span>
+              <span className="font-mono">{formatNumber(targetWasteTon)} tons</span>
             </div>
             <input 
-              type="range" min="0" max={totalBudget} step="50000"
-              value={allocWaste}
-              onChange={(e) => handleSliderChange(setAllocWaste, Number(e.target.value), allocWaste)}
+              type="range" min="0" max={WASTE_SLIDER_MAX_TON} step="50000"
+              value={targetWasteTon}
+              onChange={(e) => applyWasteTarget(Number(e.target.value))}
               className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-orange-600"
             />
             <div className="flex justify-between text-[10px] text-gray-500">
-               <span>Baseline: {formatNumber(S0)}</span>
+               <span>Mitigation spend: {formatCurrency(allocWaste)}</span>
                <span className="font-bold text-orange-600">Result: {formatNumber(S_final)} tons ({wasteReduction.toFixed(0)}% ↓)</span>
             </div>
+            {wasteClamped && (
+              <div className="text-[10px] font-bold text-red-600">
+                Budget limit reached — slider clamped to achievable waste outcome.
+              </div>
+            )}
           </div>
 
           {/* Slider 3: Community (Read-Only Visualization of Selected Items) */}
