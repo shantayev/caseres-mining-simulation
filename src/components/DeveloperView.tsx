@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Droplets, Trash2, DollarSign, Download, Settings, Users, CheckCircle } from 'lucide-react';
+import { Droplets, Trash2, DollarSign, Download, Settings, Users, CheckCircle, Info } from 'lucide-react';
 import clsx from 'clsx';
 
 // --- Constants & Data ---
@@ -45,11 +45,48 @@ const AIR_PROCESSES: {
   aqiValue: number; // worst-case (max of range)
   statusLabel: string;
   statusColorClass: string;
+  description: string;
 }[] = [
-  { id: 'extraction', label: 'Extraction', rangeLabel: '0–50', aqiValue: 50, statusLabel: 'Good', statusColorClass: 'text-green-700' },
-  { id: 'refining', label: 'Refining', rangeLabel: '51–100', aqiValue: 100, statusLabel: 'Moderate', statusColorClass: 'text-yellow-700' },
-  { id: 'processing', label: 'Processing', rangeLabel: '101–150', aqiValue: 150, statusLabel: 'Unhealthy for Sensitive Groups', statusColorClass: 'text-orange-700' },
-  { id: 'advanced_manufacturing', label: 'Advanced Manufacturing', rangeLabel: '151–200', aqiValue: 200, statusLabel: 'Unhealthy', statusColorClass: 'text-red-700' },
+  {
+    id: 'extraction',
+    label: 'Extraction',
+    rangeLabel: '0–50',
+    aqiValue: 50,
+    statusLabel: 'Good',
+    statusColorClass: 'text-green-700',
+    description:
+      "Traditional open-pit mining requires heavy blasting and ore crushing. These activities generate massive amounts of mineral dust and fine particulate matter. Combined with constant diesel exhaust from heavy machinery, this process typically creates the highest immediate impact on local air quality.",
+  },
+  {
+    id: 'refining',
+    label: 'Refining',
+    rangeLabel: '51–100',
+    aqiValue: 100,
+    statusLabel: 'Moderate',
+    statusColorClass: 'text-yellow-700',
+    description:
+      "Turning ore or brine into battery-grade lithium chemicals involves high-heat roasting and acid leaching. This stage can release chemical vapors and sulfur dioxide into the atmosphere. While usually concentrated around the facility, these emissions are known to cause respiratory issues for children or the elderly living downwind.",
+  },
+  {
+    id: 'processing',
+    label: 'Processing',
+    rangeLabel: '101–150',
+    aqiValue: 150,
+    statusLabel: 'Unhealthy for Sensitive Groups',
+    statusColorClass: 'text-orange-700',
+    description:
+      "This stage involves the mixing and coating of chemicals to create battery cathodes and anodes. While it happens in a more controlled industrial setting, it often involves the use of solvents (VOCs). Even with filtration, small amounts can escape, keeping the air quality in the \"acceptable but not perfect\" range.",
+  },
+  {
+    id: 'advanced_manufacturing',
+    label: 'Advanced Manufacturing',
+    rangeLabel: '151–200',
+    aqiValue: 200,
+    statusLabel: 'Unhealthy',
+    statusColorClass: 'text-red-700',
+    description:
+      "The final assembly of battery cells happens in \"dry rooms\" and \"clean rooms\" to prevent contamination. Because any dust or humidity would ruin the battery, the air is constantly scrubbed and filtered to near-perfect levels. This stage produces the lowest amount of ambient air pollution.",
+  },
 ];
 
 // --- Helper Functions ---
@@ -232,7 +269,26 @@ export const DeveloperView: React.FC = () => {
           {showAirQuality && (
             <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 flex flex-col gap-3">
               <div className="flex flex-col gap-1">
-                <label className="font-bold text-xs text-gray-700">Process Type</label>
+                <div className="flex items-center gap-2">
+                  <label className="font-bold text-xs text-gray-700">Process Type</label>
+                  <div className="relative group">
+                    <button
+                      type="button"
+                      className="text-gray-400 hover:text-gray-700 transition-colors"
+                      aria-label="Process info"
+                    >
+                      <Info size={14} />
+                    </button>
+                    <div className="pointer-events-none absolute left-0 top-6 z-50 hidden w-80 rounded-lg border border-gray-200 bg-white p-2 text-[10px] text-gray-700 shadow-lg group-hover:block">
+                      <div className="font-bold text-gray-900 mb-1">
+                        {selectedAirProcess.label} ({selectedAirProcess.rangeLabel})
+                      </div>
+                      <div className="leading-relaxed">
+                        {selectedAirProcess.description}
+                      </div>
+                    </div>
+                  </div>
+                </div>
                 <select
                   value={selectedAirProcessId}
                   onChange={(e) => handleAirProcessChange(e.target.value as AirProcessId)}
