@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Droplets, Trash2, DollarSign, Download, Settings, Users, CheckCircle } from 'lucide-react';
+import React, { useState } from 'react';
+import { Droplets, Trash2, DollarSign, Download, Settings, Users, CheckCircle, Info } from 'lucide-react';
 import clsx from 'clsx';
 
 // --- Constants & Data ---
@@ -36,6 +36,59 @@ const ALPHA_S = 0.2; // Min fraction of baseline waste (20%)
 const K_W = 0.5;     // Mitigation effectiveness rate for water
 const K_S = 0.5;     // Mitigation effectiveness rate for waste
 
+type AirProcessId = 'extraction' | 'refining' | 'processing' | 'advanced_manufacturing';
+
+const AIR_PROCESSES: {
+  id: AirProcessId;
+  label: string;
+  rangeLabel: string;
+  aqiValue: number; // worst-case (max of range)
+  statusLabel: string;
+  statusColorClass: string;
+  description: string;
+}[] = [
+  {
+    id: 'extraction',
+    label: 'Extraction',
+    rangeLabel: '151–200',
+    aqiValue: 200,
+    statusLabel: 'Unhealthy',
+    statusColorClass: 'text-red-700',
+    description:
+      "Traditional open-pit mining requires heavy blasting and ore crushing. These activities generate massive amounts of mineral dust and fine particulate matter. Combined with constant diesel exhaust from heavy machinery, this process typically creates the highest immediate impact on local air quality.",
+  },
+  {
+    id: 'refining',
+    label: 'Refining',
+    rangeLabel: '101–150',
+    aqiValue: 150,
+    statusLabel: 'Unhealthy for Sensitive Groups',
+    statusColorClass: 'text-orange-700',
+    description:
+      "Turning ore or brine into battery-grade lithium chemicals involves high-heat roasting and acid leaching. This stage can release chemical vapors and sulfur dioxide into the atmosphere. While usually concentrated around the facility, these emissions are known to cause respiratory issues for children or the elderly living downwind.",
+  },
+  {
+    id: 'processing',
+    label: 'Processing',
+    rangeLabel: '51–100',
+    aqiValue: 100,
+    statusLabel: 'Moderate',
+    statusColorClass: 'text-yellow-700',
+    description:
+      "This stage involves the mixing and coating of chemicals to create battery cathodes and anodes. While it happens in a more controlled industrial setting, it often involves the use of solvents (VOCs). Even with filtration, small amounts can escape, keeping the air quality in the \"acceptable but not perfect\" range.",
+  },
+  {
+    id: 'advanced_manufacturing',
+    label: 'Advanced Manufacturing',
+    rangeLabel: '0–50',
+    aqiValue: 50,
+    statusLabel: 'Good',
+    statusColorClass: 'text-green-700',
+    description:
+      "The final assembly of battery cells happens in \"dry rooms\" and \"clean rooms\" to prevent contamination. Because any dust or humidity would ruin the battery, the air is constantly scrubbed and filtered to near-perfect levels. This stage produces the lowest amount of ambient air pollution.",
+  },
+];
+
 // --- Helper Functions ---
 
 const formatNumber = (num: number) => {
@@ -57,17 +110,15 @@ export const DeveloperView: React.FC = () => {
   // Replaced AllocCommunity with explicitly selected items
   const [selectedBenefits, setSelectedBenefits] = useState<string[]>([]);
 
+  // State 3: Air Quality (toggle + process selection)
+  const [showAirQuality, setShowAirQuality] = useState(false);
+  const [selectedAirProcessId, setSelectedAirProcessId] = useState<AirProcessId>('extraction');
+  const [airQualityAqi, setAirQualityAqi] = useState<number>(AIR_PROCESSES.find(p => p.id === 'extraction')!.aqiValue);
+
   // 1. Calculate Total Available Budget
   const budgetFromSize = 1500000 * selectedSize.value;
   const budgetFromCapacity = 1.5 * selectedCapacity.value; 
   const totalBudget = budgetFromSize + budgetFromCapacity;
-
-  // Reset allocations when Total Budget changes (to prevent overflow)
-  useEffect(() => {
-    setAllocWater(0);
-    setAllocWaste(0);
-    setSelectedBenefits([]);
-  }, [totalBudget]);
 
   // Derived Budget State
   // Calculate Community Spend from checkboxes, NOT slider
@@ -120,10 +171,38 @@ export const DeveloperView: React.FC = () => {
     }
   };
 
+  const handleSizeChange = (sizeValue: number) => {
+    const next = MINE_SIZES.find(s => s.value === sizeValue);
+    if (!next) return;
+
+    setSelectedSize(next);
+    setAllocWater(0);
+    setAllocWaste(0);
+    setSelectedBenefits([]);
+  };
+
+  const handleCapacityChange = (capacityValue: number) => {
+    const next = CAPACITIES.find(c => c.value === capacityValue);
+    if (!next) return;
+
+    setSelectedCapacity(next);
+    setAllocWater(0);
+    setAllocWaste(0);
+    setSelectedBenefits([]);
+  };
+
+  const handleAirProcessChange = (nextId: AirProcessId) => {
+    setSelectedAirProcessId(nextId);
+    const proc = AIR_PROCESSES.find(p => p.id === nextId);
+    setAirQualityAqi(proc ? proc.aqiValue : 0);
+  };
+
+  const selectedAirProcess = AIR_PROCESSES.find(p => p.id === selectedAirProcessId) ?? AIR_PROCESSES[0];
+
   // Handler for CSV Export
   const handleDownloadCSV = () => {
     const benefitIdsStr = selectedBenefits.join('|');
-    const csvContent = `size_km2,capacity_mton,total_budget,water_alloc,waste_alloc,community_alloc,final_water_m3,final_waste_ton,selected_benefits\n${selectedSize.value},${selectedCapacity.value},${totalBudget},${allocWater},${allocWaste},${communitySpend},${W_final.toFixed(0)},${S_final.toFixed(0)},${benefitIdsStr}`;
+    const csvContent = `size_km2,capacity_mton,total_budget,water_alloc,waste_alloc,community_alloc,final_water_m3,final_waste_ton,selected_benefits,air_quality_enabled,air_process,air_quality_aqi\n${selectedSize.value},${selectedCapacity.value},${totalBudget},${allocWater},${allocWaste},${communitySpend},${W_final.toFixed(0)},${S_final.toFixed(0)},${benefitIdsStr},${showAirQuality ? 1 : 0},${selectedAirProcessId},${airQualityAqi}`;
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -152,7 +231,7 @@ export const DeveloperView: React.FC = () => {
             <label className="font-bold text-xs text-gray-700">Mine Size</label>
             <select 
               value={selectedSize.value}
-              onChange={(e) => setSelectedSize(MINE_SIZES.find(s => s.value === Number(e.target.value))!)}
+              onChange={(e) => handleSizeChange(Number(e.target.value))}
               className="p-2 border rounded bg-gray-50 text-sm"
             >
               {MINE_SIZES.map(s => (
@@ -165,7 +244,7 @@ export const DeveloperView: React.FC = () => {
             <label className="font-bold text-xs text-gray-700">Capacity</label>
             <select 
               value={selectedCapacity.value}
-              onChange={(e) => setSelectedCapacity(CAPACITIES.find(c => c.value === Number(e.target.value))!)}
+              onChange={(e) => handleCapacityChange(Number(e.target.value))}
               className="p-2 border rounded bg-gray-50 text-sm"
             >
               {CAPACITIES.map(c => (
@@ -173,6 +252,78 @@ export const DeveloperView: React.FC = () => {
               ))}
             </select>
           </div>
+        </div>
+
+        {/* Air Quality (optional) */}
+        <div className="border-t pt-4 flex flex-col gap-3">
+          <label className="flex items-center gap-2 text-xs font-bold text-gray-700 select-none">
+            <input
+              type="checkbox"
+              checked={showAirQuality}
+              onChange={(e) => setShowAirQuality(e.target.checked)}
+              className="accent-gray-800"
+            />
+            Include Air Quality
+          </label>
+
+          {showAirQuality && (
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 flex flex-col gap-3">
+              <div className="flex flex-col gap-1">
+                <div className="flex items-center gap-2">
+                  <label className="font-bold text-xs text-gray-700">Process Type</label>
+                  <div className="relative group">
+                    <button
+                      type="button"
+                      className="text-gray-400 hover:text-gray-700 transition-colors"
+                      aria-label="Process info"
+                    >
+                      <Info size={14} />
+                    </button>
+                    <div className="pointer-events-none absolute left-0 top-6 z-50 hidden w-80 rounded-lg border border-gray-200 bg-white p-2 text-[10px] text-gray-700 shadow-lg group-hover:block">
+                      <div className="font-bold text-gray-900 mb-1">
+                        {selectedAirProcess.label} ({selectedAirProcess.rangeLabel})
+                      </div>
+                      <div className="leading-relaxed">
+                        {selectedAirProcess.description}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <select
+                  value={selectedAirProcessId}
+                  onChange={(e) => handleAirProcessChange(e.target.value as AirProcessId)}
+                  className="p-2 border rounded bg-white text-sm"
+                >
+                  {AIR_PROCESSES.map(p => (
+                    <option key={p.id} value={p.id}>
+                      {p.label} ({p.rangeLabel})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <div className="flex justify-between text-xs font-bold">
+                  <span className="text-gray-700">Air Quality (AQI)</span>
+                  <span className={clsx('font-mono', selectedAirProcess.statusColorClass)}>
+                    {airQualityAqi} — {selectedAirProcess.statusLabel}
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={200}
+                  step={1}
+                  value={airQualityAqi}
+                  disabled
+                  className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-not-allowed accent-gray-700 opacity-80"
+                />
+                <div className="text-[10px] text-gray-500">
+                  Value is set by process selection (worst-case of the range).
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Budget Display */}
