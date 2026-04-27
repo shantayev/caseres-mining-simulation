@@ -85,7 +85,7 @@ const BENEFIT_VALUES: Record<string, {cost: number, util: number}> = {
 
 // --- Helper Functions ---
 
-const parseCSV = (text: string, type: 'community' | 'developer'): any => {
+const parseCSV = (text: string, type: 'community' | 'developer'): CommunityResult | DeveloperResult | null => {
   const lines = text.trim().split('\n');
   if (lines.length < 2) return null;
   const values = lines[1].split(','); 
@@ -156,8 +156,8 @@ export const AdminView: React.FC = () => {
       console.log(`Parsing ${type} CSV:`, text); // Debug log
       const data = parseCSV(text, type);
       console.log(`Parsed ${type} Data:`, data); // Debug log
-      if (type === 'community') setCommunityData(data);
-      else setDeveloperData(data);
+      if (type === 'community') setCommunityData(data as CommunityResult | null);
+      else setDeveloperData(data as DeveloperResult | null);
     };
     reader.readAsText(file);
   };
@@ -166,7 +166,7 @@ export const AdminView: React.FC = () => {
     if (!communityData || !developerData) return null;
 
     let status: 'optimal' | 'suboptimal' | 'infeasible' = 'optimal';
-    let messages: string[] = [];
+    const messages: string[] = [];
 
     // 1. Water Constraint
     const hasWaterBenefit = communityData.selectedBenefitIds.some(id => ['canoe', 'irrigation'].includes(id));

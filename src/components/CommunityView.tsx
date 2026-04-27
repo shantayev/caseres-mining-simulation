@@ -109,10 +109,12 @@ const getPreferredOption = (groupVotes: Record<MineSizeId, number>) => {
 export const CommunityView: React.FC = () => {
   // State 1: Votes [Group][MineSize] -> 0-5
   const [votes, setVotes] = useState<Record<GroupId, Record<MineSizeId, number>>>(() => {
-    const initial: any = {};
+    const initial = {} as Record<GroupId, Record<MineSizeId, number>>;
     GROUPS.forEach(g => {
-      initial[g.id] = {};
-      MINE_SIZES.forEach(m => initial[g.id][m.id] = 0);
+      initial[g.id] = {} as Record<MineSizeId, number>;
+      MINE_SIZES.forEach(m => {
+        initial[g.id][m.id] = 0;
+      });
     });
     return initial;
   });
