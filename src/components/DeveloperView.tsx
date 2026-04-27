@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { Droplets, Trash2, DollarSign, Download, Settings, Users, CheckCircle } from 'lucide-react';
 import { Droplets, Trash2, DollarSign, Download, Settings, Users, CheckCircle, Info } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -260,26 +259,6 @@ export const DeveloperView: React.FC = () => {
         alert("Not enough budget remaining! Increase Total Budget or reduce other allocations.");
       }
     }
-  };
-
-  const handleSizeChange = (sizeValue: number) => {
-    const next = MINE_SIZES.find(s => s.value === sizeValue);
-    if (!next) return;
-
-    setSelectedSize(next);
-    setAllocWater(0);
-    setAllocWaste(0);
-    setSelectedBenefits([]);
-  };
-
-  const handleCapacityChange = (capacityValue: number) => {
-    const next = CAPACITIES.find(c => c.value === capacityValue);
-    if (!next) return;
-
-    setSelectedCapacity(next);
-    setAllocWater(0);
-    setAllocWaste(0);
-    setSelectedBenefits([]);
   };
 
   const handleAirProcessChange = (nextId: AirProcessId) => {
