@@ -36,9 +36,19 @@ const ALPHA_S = 0.2; // Min fraction of baseline waste (20%)
 const K_W = 0.5;     // Mitigation effectiveness rate for water
 const K_S = 0.5;     // Mitigation effectiveness rate for waste
 
-// Admin feasibility thresholds → minimum required mitigation spend
-const WATER_TARGET_M3 = 800_000;
-const WASTE_TARGET_TON = 5_000_000;
+// Water/waste mitigation spend: $0.3M floor, then +$2M steps (Mine/Capacity auto-jumps use same rule)
+const MITIGATION_SPEND_MIN_USD = 300_000; // $0.3M minimum per lever (thumb at left shows this spend)
+const MITIGATION_STEP_USD = 2_000_000;
+// With a 0.3M minimum and $2M steps, the last selectable rungs should be:
+// water: 0.3 + 3*2 = 6.3M (4 capacity options => index 0..3)
+// waste: 0.3 + 4*2 = 8.3M (5 mine options => index 0..4)
+const WATER_SPEND_MAX_USD = MITIGATION_SPEND_MIN_USD + 3 * MITIGATION_STEP_USD; // $6.3M
+const WASTE_SPEND_MAX_USD = MITIGATION_SPEND_MIN_USD + 4 * MITIGATION_STEP_USD; // $8.3M
+/** Always included in Total Mitigation Budget so min water + min waste are funded at default. */
+const BASELINE_WATER_WASTE_MITIGATION_USD = MITIGATION_SPEND_MIN_USD * 2;
+
+// Outcome slider domains (removed: sliders operate on $ spend now)
+
 type AirTierId = 'extraction' | 'refining' | 'processing' | 'advanced_manufacturing';
 
 /** Discrete chain: air worsens left → right; extra scenario budget per tier. */
@@ -57,7 +67,7 @@ const AIR_TIERS: {
     id: 'extraction',
     label: 'Extraction',
     rangeLabel: '0–51',
-    aqiWorst: 51,
+    aqiWorst: 0,
     statusLabel: 'Good',
     statusColorClass: 'text-green-700',
     budgetAdd: 0,
@@ -109,56 +119,70 @@ const formatCurrency = (num: number) => {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(num);
 };
 
-const requiredAllocForFinalTarget = (params: { baseline: number; min: number; k: number; target: number }) => {
-  const { baseline, min, k, target } = params;
-
-  // Already compliant without mitigation spend.
-  if (target >= baseline) return 0;
-
-  // Model can't go below its asymptote.
-  if (target <= min) return Number.POSITIVE_INFINITY;
-
-  const denom = baseline - min;
-  if (denom <= 0) return Number.POSITIVE_INFINITY;
-
-  const ratio = (target - min) / denom; // (0, 1)
-  if (!(ratio > 0 && ratio < 1)) return Number.POSITIVE_INFINITY;
-
-  const xMillions = -(1 / k) * Math.log(ratio);
-  const alloc = xMillions * 1_000_000;
-
-  // Guard against tiny negatives from floating point.
-  return Math.max(0, alloc);
+/** Snap a lever to $MIN + k·$STEP within [MIN, cap], or 0 if the budget cannot cover MIN */
+const clampMitigationLeverSpend = (raw: number, maxAffordableUsd: number, spendCeilingUsd: number) => {
+  const min = MITIGATION_SPEND_MIN_USD;
+  const step = MITIGATION_STEP_USD;
+  const cap = Math.min(Math.max(0, maxAffordableUsd), spendCeilingUsd);
+  if (cap < min) return 0;
+  const r = Number.isFinite(raw) ? raw : min;
+  const t = Math.max(min, Math.min(r, cap));
+  let k = Math.round((t - min) / step);
+  let out = min + k * step;
+  if (out > cap) {
+    const kMax = Math.floor((cap - min) / step);
+    out = min + Math.max(0, kMax) * step;
+  }
+  return out;
 };
+
+const finalForAlloc = (params: { baseline: number; min: number; k: number; alloc: number }) => {
+  const { baseline, min, k, alloc } = params;
+  return min + (baseline - min) * Math.exp(-k * (alloc / 1_000_000));
+};
+
 
 export const DeveloperView: React.FC = () => {
   // State 1: Configuration
   const [selectedSize, setSelectedSize] = useState(MINE_SIZES[0]); // Default lowest
   const [selectedCapacity, setSelectedCapacity] = useState(CAPACITIES[0]); // Default lowest
 
-  // State 2: Budget Allocation (Raw Dollar Amounts)
-  const [allocWater, setAllocWater] = useState(0);
-  const [allocWaste, setAllocWaste] = useState(0);
+  // State 2: Budget Allocation (Raw Dollar Amounts) — default to minimum spend ($0.3M) per lever
+  const [allocWater, setAllocWater] = useState(MITIGATION_SPEND_MIN_USD);
+  const [allocWaste, setAllocWaste] = useState(MITIGATION_SPEND_MIN_USD);
   // Replaced AllocCommunity with explicitly selected items
   const [selectedBenefits, setSelectedBenefits] = useState<string[]>([]);
 
-  // Outcome slider state
+  // Outcome slider state (final outcome values)
+  const [targetWaterM3, setTargetWaterM3] = useState<number>(() => {
+    const W0 = CAPACITIES[0].water;
+    const Wmin = ALPHA_W * W0;
+    const wf = Wmin + (W0 - Wmin) * Math.exp(-K_W * (MITIGATION_SPEND_MIN_USD / 1_000_000));
+    return Math.round(wf / 10_000) * 10_000;
+  });
+  const [targetWasteTon, setTargetWasteTon] = useState<number>(() => {
+    const S0 = MINE_SIZES[0].waste;
+    const Smin = ALPHA_S * S0;
+    const sf = Smin + (S0 - Smin) * Math.exp(-K_S * (MITIGATION_SPEND_MIN_USD / 1_000_000));
+    return Math.round(sf / 50_000) * 50_000;
+  });
   const [waterClamped, setWaterClamped] = useState(false);
   const [wasteClamped, setWasteClamped] = useState(false);
-  const [minAllocWater, setMinAllocWater] = useState(0);
-  const [minAllocWaste, setMinAllocWaste] = useState(0);
   const [waterAutoJumpDelta, setWaterAutoJumpDelta] = useState<number | null>(null);
   const [wasteAutoJumpDelta, setWasteAutoJumpDelta] = useState<number | null>(null);
   // State 3: Facility (drives air quality + adds scenario budget)
   const [selectedFacilityId, setSelectedFacilityId] = useState<AirTierId>('extraction');
 
-  // 1. Calculate Total Available Budget (mine scenario + air-process add-on)
-  const budgetFromSize = 1500000 * selectedSize.value;
-  const budgetFromCapacity = 1.5 * selectedCapacity.value;
-  const baseScenarioBudget = budgetFromSize + budgetFromCapacity;
+  // 1. Calculate Total Available Budget (mine + capacity + facility add-on)
+  // New simple rule: each mine/capacity option adds $2M increments.
+  const mineStepIndex = Math.max(0, MINE_SIZES.findIndex(s => s.value === selectedSize.value));
+  const capacityStepIndex = Math.max(0, CAPACITIES.findIndex(c => c.value === selectedCapacity.value));
+  const mineBudgetAdd = mineStepIndex * 2_000_000;
+  const capacityBudgetAdd = capacityStepIndex * 2_000_000;
+  const baseScenarioBudget = mineBudgetAdd + capacityBudgetAdd;
   const selectedFacility = AIR_TIERS.find(t => t.id === selectedFacilityId) ?? AIR_TIERS[0];
   const airBudgetAdd = selectedFacility.budgetAdd;
-  const totalBudget = baseScenarioBudget + airBudgetAdd;
+  const totalBudget = baseScenarioBudget + airBudgetAdd + BASELINE_WATER_WASTE_MITIGATION_USD;
 
   // Derived Budget State
   // Calculate Community Spend from checkboxes, NOT slider
@@ -169,6 +193,8 @@ export const DeveloperView: React.FC = () => {
 
   const totalAllocated = allocWater + allocWaste + communitySpend;
   const remainingBudget = totalBudget - totalAllocated;
+  const maxWaterSpend = Math.max(0, totalBudget - (allocWaste + communitySpend));
+  const maxWasteSpend = Math.max(0, totalBudget - (allocWater + communitySpend));
 
   // 3. Environmental Model Calculations
   // Water
@@ -186,69 +212,127 @@ export const DeveloperView: React.FC = () => {
   const S_final = Smin + (S0 - Smin) * Math.exp(-K_S * X_waste_million);
   const wasteReduction = ((S0 - S_final) / S0) * 100;
 
-  const clampAllocToStep = (value: number) => {
+  const clampWaterTargetStep = (value: number) => {
+    const step = 10_000;
+    return Math.round(value / step) * step;
+  };
+
+  const clampWasteTargetStep = (value: number) => {
     const step = 50_000;
-    return Math.max(0, Math.round(value / step) * step);
+    return Math.round(value / step) * step;
   };
 
   const handleCapacityChange = (capacityValue: number) => {
     const cap = CAPACITIES.find(c => c.value === capacityValue);
     if (!cap) return;
 
-    // Compute minimum required spend for water to meet admin threshold.
-    // Capacity changes also change total budget, so clamp to the *new* budget.
+    // New rule: capacity option adds $2M increments to total budget.
+    // We auto-set water spend to match that baseline $ increment.
+    const capacityIdx = Math.max(0, CAPACITIES.findIndex(c => c.value === cap.value));
+    const desiredAllocWater = MITIGATION_SPEND_MIN_USD + capacityIdx * MITIGATION_STEP_USD;
+
+    const mineIdx = Math.max(0, MINE_SIZES.findIndex(s => s.value === selectedSize.value));
+    const mineBudgetAdd = mineIdx * 2_000_000;
+    const capacityBudgetAdd = capacityIdx * 2_000_000;
+    const nextTotal = mineBudgetAdd + capacityBudgetAdd + airBudgetAdd + BASELINE_WATER_WASTE_MITIGATION_USD;
+
+    const maxWaterAllowed = Math.max(0, nextTotal - (allocWaste + communitySpend));
+    const allocWaterNew = clampMitigationLeverSpend(
+      Math.min(desiredAllocWater, maxWaterAllowed),
+      maxWaterAllowed,
+      WATER_SPEND_MAX_USD
+    );
+
+    const maxWasteAllowed = Math.max(0, nextTotal - (allocWaterNew + communitySpend));
+    const allocWasteNew = clampMitigationLeverSpend(allocWaste, maxWasteAllowed, WASTE_SPEND_MAX_USD);
+
     const W0_new = cap.water;
     const Wmin_new = ALPHA_W * W0_new;
-    const newTotalBudget = 1_500_000 * selectedSize.value + 1.5 * cap.value + airBudgetAdd;
-    const maxAllowed = Math.max(0, newTotalBudget - (allocWaste + communitySpend));
+    const W_final_new =
+      Wmin_new + (W0_new - Wmin_new) * Math.exp(-K_W * (allocWaterNew / 1_000_000));
 
-    const allocNeeded = requiredAllocForFinalTarget({
-      baseline: W0_new,
-      min: Wmin_new,
-      k: K_W,
-      target: WATER_TARGET_M3,
-    });
-
-    const clamped = !Number.isFinite(allocNeeded) || allocNeeded > maxAllowed;
-    const newMin = clampAllocToStep(Number.isFinite(allocNeeded) ? Math.min(allocNeeded, maxAllowed) : maxAllowed);
+    const S0_new = selectedSize.waste;
+    const Smin_new = ALPHA_S * S0_new;
+    const S_final_new =
+      Smin_new + (S0_new - Smin_new) * Math.exp(-K_S * (allocWasteNew / 1_000_000));
 
     setSelectedCapacity(cap);
-    setWaterAutoJumpDelta(newMin - allocWater);
-    setMinAllocWater(newMin);
-    setAllocWater(newMin);
-    setWaterClamped(clamped);
+    setWaterAutoJumpDelta(allocWaterNew - allocWater);
+    setAllocWater(allocWaterNew);
+    setTargetWaterM3(clampWaterTargetStep(W_final_new));
+    setWaterClamped(desiredAllocWater > maxWaterAllowed);
+
+    setWasteAutoJumpDelta(allocWasteNew - allocWaste);
+    setAllocWaste(allocWasteNew);
+    setTargetWasteTon(clampWasteTargetStep(S_final_new));
+    setWasteClamped(allocWasteNew !== allocWaste);
   };
 
   const handleSizeChange = (sizeValue: number) => {
     const size = MINE_SIZES.find(s => s.value === sizeValue);
     if (!size) return;
 
-    // Compute minimum required spend for waste to meet admin threshold.
-    // Size changes also change total budget, so clamp to the *new* budget.
+    // New rule: mine size option adds $2M increments to total budget.
+    // We auto-set waste spend to match that baseline $ increment.
+    const mineIdx = Math.max(0, MINE_SIZES.findIndex(s => s.value === size.value));
+    const desiredAllocWaste = MITIGATION_SPEND_MIN_USD + mineIdx * MITIGATION_STEP_USD;
+
+    const capacityIdx = Math.max(0, CAPACITIES.findIndex(c => c.value === selectedCapacity.value));
+    const capacityBudgetAdd = capacityIdx * 2_000_000;
+    const mineBudgetAdd = mineIdx * 2_000_000;
+    const nextTotal = mineBudgetAdd + capacityBudgetAdd + airBudgetAdd + BASELINE_WATER_WASTE_MITIGATION_USD;
+
+    const maxWasteAllowed = Math.max(0, nextTotal - (allocWater + communitySpend));
+    const allocWasteNew = clampMitigationLeverSpend(
+      Math.min(desiredAllocWaste, maxWasteAllowed),
+      maxWasteAllowed,
+      WASTE_SPEND_MAX_USD
+    );
+
+    const maxWaterAllowed = Math.max(0, nextTotal - (allocWasteNew + communitySpend));
+    const allocWaterNew = clampMitigationLeverSpend(allocWater, maxWaterAllowed, WATER_SPEND_MAX_USD);
+
     const S0_new = size.waste;
     const Smin_new = ALPHA_S * S0_new;
-    const newTotalBudget = 1_500_000 * size.value + 1.5 * selectedCapacity.value + airBudgetAdd;
-    const maxAllowed = Math.max(0, newTotalBudget - (allocWater + communitySpend));
+    const S_final_new =
+      Smin_new + (S0_new - Smin_new) * Math.exp(-K_S * (allocWasteNew / 1_000_000));
 
-    const allocNeeded = requiredAllocForFinalTarget({
-      baseline: S0_new,
-      min: Smin_new,
-      k: K_S,
-      target: WASTE_TARGET_TON,
-    });
-
-    const clamped = !Number.isFinite(allocNeeded) || allocNeeded > maxAllowed;
-    const newMin = clampAllocToStep(Number.isFinite(allocNeeded) ? Math.min(allocNeeded, maxAllowed) : maxAllowed);
+    const W0_new = selectedCapacity.water;
+    const Wmin_new = ALPHA_W * W0_new;
+    const W_final_new =
+      Wmin_new + (W0_new - Wmin_new) * Math.exp(-K_W * (allocWaterNew / 1_000_000));
 
     setSelectedSize(size);
-    setWasteAutoJumpDelta(newMin - allocWaste);
-    setMinAllocWaste(newMin);
-    setAllocWaste(newMin);
-    setWasteClamped(clamped);
+    setWasteAutoJumpDelta(allocWasteNew - allocWaste);
+    setAllocWaste(allocWasteNew);
+    setTargetWasteTon(clampWasteTargetStep(S_final_new));
+    setWasteClamped(desiredAllocWaste > maxWasteAllowed);
+
+    setWaterAutoJumpDelta(allocWaterNew - allocWater);
+    setAllocWater(allocWaterNew);
+    setTargetWaterM3(clampWaterTargetStep(W_final_new));
+    setWaterClamped(allocWaterNew !== allocWater);
   };
 
-  const maxWaterSpend = Math.max(minAllocWater, totalBudget - (allocWaste + communitySpend));
-  const maxWasteSpend = Math.max(minAllocWaste, totalBudget - (allocWater + communitySpend));
+  const applyWaterTarget = (desiredAllocUsd: number) => {
+    const raw = Number.isFinite(desiredAllocUsd) ? desiredAllocUsd : MITIGATION_SPEND_MIN_USD;
+    const clamped = Math.min(raw, WATER_SPEND_MAX_USD, maxWaterSpend);
+    const allocCap = clampMitigationLeverSpend(clamped, maxWaterSpend, WATER_SPEND_MAX_USD);
+    setAllocWater(allocCap);
+    setTargetWaterM3(clampWaterTargetStep(finalForAlloc({ baseline: W0, min: Wmin, k: K_W, alloc: allocCap })));
+    setWaterClamped(raw > maxWaterSpend);
+    setWaterAutoJumpDelta(null);
+  };
+
+  const applyWasteTarget = (desiredAllocUsd: number) => {
+    const raw = Number.isFinite(desiredAllocUsd) ? desiredAllocUsd : MITIGATION_SPEND_MIN_USD;
+    const clamped = Math.min(raw, WASTE_SPEND_MAX_USD, maxWasteSpend);
+    const allocCap = clampMitigationLeverSpend(clamped, maxWasteSpend, WASTE_SPEND_MAX_USD);
+    setAllocWaste(allocCap);
+    setTargetWasteTon(clampWasteTargetStep(finalForAlloc({ baseline: S0, min: Smin, k: K_S, alloc: allocCap })));
+    setWasteClamped(raw > maxWasteSpend);
+    setWasteAutoJumpDelta(null);
+  };
 
   const toggleBenefit = (id: string, cost: number) => {
     if (selectedBenefits.includes(id)) {
@@ -259,14 +343,18 @@ export const DeveloperView: React.FC = () => {
       if (remainingBudget >= cost) {
         setSelectedBenefits(prev => [...prev, id]);
       } else {
-        alert("Not enough budget remaining! Increase Total Budget or reduce other allocations.");
+        alert('Not enough budget remaining! Increase Total Mitigation Budget or reduce other allocations.');
       }
     }
   };
 
   const handleFacilityChange = (nextId: AirTierId) => {
     const tier = AIR_TIERS.find(t => t.id === nextId) ?? AIR_TIERS[0];
-    const nextTotal = 1_500_000 * selectedSize.value + 1.5 * selectedCapacity.value + tier.budgetAdd;
+    const mineIdx = Math.max(0, MINE_SIZES.findIndex(s => s.value === selectedSize.value));
+    const capacityIdx = Math.max(0, CAPACITIES.findIndex(c => c.value === selectedCapacity.value));
+    const mineBudgetAdd = mineIdx * 2_000_000;
+    const capacityBudgetAdd = capacityIdx * 2_000_000;
+    const nextTotal = mineBudgetAdd + capacityBudgetAdd + tier.budgetAdd + BASELINE_WATER_WASTE_MITIGATION_USD;
     setSelectedFacilityId(tier.id);
 
     // If the new facility reduces total budget below current spend, clamp water/waste to fit.
@@ -277,18 +365,44 @@ export const DeveloperView: React.FC = () => {
     let w = allocWaste;
     for (let i = 0; i < 6; i++) {
       const room = nextTotal - communitySpend;
-      w = clampAllocToStep(Math.min(w, Math.max(minAllocWaste, room - wa)));
-      wa = clampAllocToStep(Math.min(wa, Math.max(minAllocWater, room - w)));
+      const maxForW = Math.max(0, room - wa);
+      const maxForWa = Math.max(0, room - w);
+      w = clampMitigationLeverSpend(w, maxForW, WASTE_SPEND_MAX_USD);
+      wa = clampMitigationLeverSpend(wa, maxForWa, WATER_SPEND_MAX_USD);
     }
     setAllocWaste(w);
     setAllocWater(wa);
+
+    // Keep displayed results in sync with the clamped spends.
+    const S0_new = selectedSize.waste;
+    const Smin_new = ALPHA_S * S0_new;
+    const S_final_new =
+      Smin_new + (S0_new - Smin_new) * Math.exp(-K_S * (w / 1_000_000));
+    const W0_new = selectedCapacity.water;
+    const Wmin_new = ALPHA_W * W0_new;
+    const W_final_new =
+      Wmin_new + (W0_new - Wmin_new) * Math.exp(-K_W * (wa / 1_000_000));
+
+    setTargetWasteTon(clampWasteTargetStep(S_final_new));
+    setTargetWaterM3(clampWaterTargetStep(W_final_new));
+
+    setWaterClamped(true);
+    setWasteClamped(true);
+  };
+
+  const handleFacilityBudgetSliderChange = (rawValue: number) => {
+    // Slider snaps to 0 / 2M / 4M / 6M; map that to the matching facility tier.
+    const stepped = Math.max(0, Math.min(6_000_000, Math.round(rawValue / 2_000_000) * 2_000_000));
+    const tier = AIR_TIERS.find(t => t.budgetAdd === stepped) ?? AIR_TIERS[0];
+    handleFacilityChange(tier.id);
   };
 
   // Handler for CSV Export
   const handleDownloadCSV = () => {
     const benefitIdsStr = selectedBenefits.join('|');
     const tier = selectedFacility;
-    const csvContent = `size_km2,capacity_mton,total_budget,water_alloc,waste_alloc,community_alloc,final_water_m3,final_waste_ton,selected_benefits,air_quality_enabled,air_process,air_quality_aqi,air_aqi_range,air_budget_add\n${selectedSize.value},${selectedCapacity.value},${totalBudget},${allocWater},${allocWaste},${communitySpend},${W_final.toFixed(0)},${S_final.toFixed(0)},${benefitIdsStr},1,${tier.id},${tier.aqiWorst},${tier.rangeLabel.replace(/–/g, '-')},${airBudgetAdd}`;
+    // Note: AQI is deprecated; keep column for backward compatibility but store facility budget add-on.
+    const csvContent = `size_km2,capacity_mton,total_budget,water_alloc,waste_alloc,community_alloc,final_water_m3,final_waste_ton,selected_benefits,air_quality_enabled,air_process,air_quality_aqi,air_aqi_range,air_budget_add\n${selectedSize.value},${selectedCapacity.value},${totalBudget},${allocWater},${allocWaste},${communitySpend},${W_final.toFixed(0)},${S_final.toFixed(0)},${benefitIdsStr},1,${tier.id},${airBudgetAdd},,${airBudgetAdd}`;
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -357,15 +471,17 @@ export const DeveloperView: React.FC = () => {
 
         {/* Budget Display */}
         <div className="bg-blue-50 p-4 rounded-lg border border-blue-100 flex flex-col items-center justify-center text-center shrink-0">
-          <div className="text-xs font-bold text-blue-800 uppercase tracking-wide">Total R&D Budget</div>
+          <div className="text-xs font-bold text-blue-800 uppercase tracking-wide">Total Mitigation Budget</div>
           <div className="text-2xl font-extrabold text-blue-900 flex items-center gap-1">
             <DollarSign size={20} />
             {formatNumber(totalBudget)}
           </div>
-          <div className="text-[10px] text-blue-800/80">
+          <div className="text-[10px] text-blue-800/80 leading-relaxed">
             Mine scenario {formatCurrency(baseScenarioBudget)}
+            {' · '}
+            Min water+waste baseline {formatCurrency(BASELINE_WATER_WASTE_MITIGATION_USD)}
             {airBudgetAdd > 0 && (
-              <span> + facility {formatCurrency(airBudgetAdd)}</span>
+              <span>{' '}· Air quality {formatCurrency(airBudgetAdd)}</span>
             )}
           </div>
           <div className={clsx("text-xs font-bold mt-1 px-2 py-0.5 rounded-full", remainingBudget > 0 ? "bg-green-100 text-green-700" : "bg-gray-200 text-gray-500")}>
@@ -384,29 +500,23 @@ export const DeveloperView: React.FC = () => {
             </div>
             <input 
               type="range"
-              min={0}
-              max={maxWaterSpend}
-              step={50_000}
+              min={MITIGATION_SPEND_MIN_USD}
+              max={WATER_SPEND_MAX_USD}
+              step={MITIGATION_STEP_USD}
               value={allocWater}
-              onChange={(e) => {
-                const raw = Number(e.target.value);
-                const capped = clampAllocToStep(Math.min(Math.max(raw, minAllocWater), maxWaterSpend));
-                setAllocWater(capped);
-                setWaterClamped(raw > maxWaterSpend);
-                setWaterAutoJumpDelta(null);
-              }}
+              onChange={(e) => applyWaterTarget(Number(e.target.value))}
               className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
             />
             <div className="flex justify-between text-[10px] text-gray-500">
                <span className="flex items-center gap-2">
-                 <span>Min required: {formatCurrency(minAllocWater)}</span>
+                 <span>Mitigation spend: {formatCurrency(allocWater)}</span>
                  {waterAutoJumpDelta !== null && (
                    <span className="font-bold text-blue-700">
                      Auto-set: {waterAutoJumpDelta >= 0 ? '+' : ''}{formatCurrency(waterAutoJumpDelta)}
                    </span>
                  )}
                </span>
-               <span className="font-bold text-blue-600">Result: {formatNumber(W_final)} m³ ({waterReduction.toFixed(0)}% ↓)</span>
+               <span className="font-bold text-blue-600">Result: {formatNumber(targetWaterM3)} m³ ({waterReduction.toFixed(0)}% ↓)</span>
             </div>
             {waterClamped && (
               <div className="text-[10px] font-bold text-red-600">
@@ -423,29 +533,23 @@ export const DeveloperView: React.FC = () => {
             </div>
             <input 
               type="range"
-              min={0}
-              max={maxWasteSpend}
-              step={50_000}
+              min={MITIGATION_SPEND_MIN_USD}
+              max={WASTE_SPEND_MAX_USD}
+              step={MITIGATION_STEP_USD}
               value={allocWaste}
-              onChange={(e) => {
-                const raw = Number(e.target.value);
-                const capped = clampAllocToStep(Math.min(Math.max(raw, minAllocWaste), maxWasteSpend));
-                setAllocWaste(capped);
-                setWasteClamped(raw > maxWasteSpend);
-                setWasteAutoJumpDelta(null);
-              }}
+              onChange={(e) => applyWasteTarget(Number(e.target.value))}
               className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-orange-600"
             />
             <div className="flex justify-between text-[10px] text-gray-500">
                <span className="flex items-center gap-2">
-                 <span>Min required: {formatCurrency(minAllocWaste)}</span>
+                 <span>Mitigation spend: {formatCurrency(allocWaste)}</span>
                  {wasteAutoJumpDelta !== null && (
                    <span className="font-bold text-orange-700">
                      Auto-set: {wasteAutoJumpDelta >= 0 ? '+' : ''}{formatCurrency(wasteAutoJumpDelta)}
                    </span>
                  )}
                </span>
-               <span className="font-bold text-orange-600">Result: {formatNumber(S_final)} tons ({wasteReduction.toFixed(0)}% ↓)</span>
+               <span className="font-bold text-orange-600">Result: {formatNumber(targetWasteTon)} tons ({wasteReduction.toFixed(0)}% ↓)</span>
             </div>
             {wasteClamped && (
               <div className="text-[10px] font-bold text-red-600">
@@ -454,26 +558,24 @@ export const DeveloperView: React.FC = () => {
             )}
           </div>
 
-          {/* Slider 3: Air Quality (linked to facility) */}
+          {/* Air quality (tier add-on, linked to facility dropdown) */}
           <div className="flex flex-col gap-1">
             <div className="flex justify-between text-xs font-bold">
               <span className="text-gray-700 flex items-center gap-1">Air Quality</span>
-              <span className={clsx('font-mono', selectedFacility.statusColorClass)}>
-                {selectedFacility.label}: AQI {selectedFacility.rangeLabel}
-              </span>
+              <span className="font-mono">{formatCurrency(airBudgetAdd)}</span>
             </div>
             <input
               type="range"
               min={0}
-              max={200}
-              step={1}
-              value={selectedFacility.aqiWorst}
-              disabled
-              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-not-allowed accent-gray-700 opacity-80"
+              max={6_000_000}
+              step={2_000_000}
+              value={airBudgetAdd}
+              onChange={(e) => handleFacilityBudgetSliderChange(Number(e.target.value))}
+              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-gray-700 opacity-90"
             />
             <div className="flex justify-between text-[10px] text-gray-500">
-              <span>Facility add-on: {formatCurrency(airBudgetAdd)}</span>
-              <span className="font-bold">{selectedFacility.statusLabel}</span>
+              <span>Mitigation budget add-on from air quality tier</span>
+              <span className="font-bold">{formatCurrency(airBudgetAdd)}</span>
             </div>
           </div>
 
