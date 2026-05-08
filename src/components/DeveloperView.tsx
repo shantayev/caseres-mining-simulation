@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Droplets, Trash2, DollarSign, Download, Settings, Users, CheckCircle, Info } from 'lucide-react';
+import { Droplets, Trash2, DollarSign, Download, Settings, Users, CheckCircle } from 'lucide-react';
 import clsx from 'clsx';
 
 // --- Constants & Data ---
@@ -149,14 +149,15 @@ export const DeveloperView: React.FC = () => {
   const [minAllocWaste, setMinAllocWaste] = useState(0);
   const [waterAutoJumpDelta, setWaterAutoJumpDelta] = useState<number | null>(null);
   const [wasteAutoJumpDelta, setWasteAutoJumpDelta] = useState<number | null>(null);
-  // State 3: Air quality tier (0 = extraction … 3 = advanced manufacturing)
-  const [airTierIndex, setAirTierIndex] = useState(0);
+  // State 3: Facility (drives air quality + adds scenario budget)
+  const [selectedFacilityId, setSelectedFacilityId] = useState<AirTierId>('extraction');
 
   // 1. Calculate Total Available Budget (mine scenario + air-process add-on)
   const budgetFromSize = 1500000 * selectedSize.value;
   const budgetFromCapacity = 1.5 * selectedCapacity.value;
   const baseScenarioBudget = budgetFromSize + budgetFromCapacity;
-  const airBudgetAdd = AIR_TIERS[airTierIndex]?.budgetAdd ?? 0;
+  const selectedFacility = AIR_TIERS.find(t => t.id === selectedFacilityId) ?? AIR_TIERS[0];
+  const airBudgetAdd = selectedFacility.budgetAdd;
   const totalBudget = baseScenarioBudget + airBudgetAdd;
 
   // Derived Budget State
@@ -263,14 +264,12 @@ export const DeveloperView: React.FC = () => {
     }
   };
 
-  const selectedAirTier = AIR_TIERS[airTierIndex] ?? AIR_TIERS[0];
-
-  const handleAirTierChange = (nextIndex: number) => {
-    const idx = Math.max(0, Math.min(AIR_TIERS.length - 1, Math.round(nextIndex)));
-    const tier = AIR_TIERS[idx];
+  const handleFacilityChange = (nextId: AirTierId) => {
+    const tier = AIR_TIERS.find(t => t.id === nextId) ?? AIR_TIERS[0];
     const nextTotal = 1_500_000 * selectedSize.value + 1.5 * selectedCapacity.value + tier.budgetAdd;
-    setAirTierIndex(idx);
+    setSelectedFacilityId(tier.id);
 
+    // If the new facility reduces total budget below current spend, clamp water/waste to fit.
     const spend = allocWater + allocWaste + communitySpend;
     if (spend <= nextTotal) return;
 
@@ -288,7 +287,7 @@ export const DeveloperView: React.FC = () => {
   // Handler for CSV Export
   const handleDownloadCSV = () => {
     const benefitIdsStr = selectedBenefits.join('|');
-    const tier = selectedAirTier;
+    const tier = selectedFacility;
     const csvContent = `size_km2,capacity_mton,total_budget,water_alloc,waste_alloc,community_alloc,final_water_m3,final_waste_ton,selected_benefits,air_quality_enabled,air_process,air_quality_aqi,air_aqi_range,air_budget_add\n${selectedSize.value},${selectedCapacity.value},${totalBudget},${allocWater},${allocWaste},${communitySpend},${W_final.toFixed(0)},${S_final.toFixed(0)},${benefitIdsStr},1,${tier.id},${tier.aqiWorst},${tier.rangeLabel.replace(/–/g, '-')},${airBudgetAdd}`;
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -313,7 +312,7 @@ export const DeveloperView: React.FC = () => {
         </div>
 
         {/* Step 1: Dropdowns */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-3 gap-4">
           <div className="flex flex-col gap-1">
             <label className="font-bold text-xs text-gray-700">Mine Size</label>
             <select 
@@ -339,61 +338,20 @@ export const DeveloperView: React.FC = () => {
               ))}
             </select>
           </div>
-        </div>
 
-        {/* Air quality: discrete chain (worse as you move right); adds to total budget */}
-        <div className="border-t pt-4 flex flex-col gap-3">
-          <div className="flex items-center justify-between gap-2">
-            <span className="font-bold text-xs text-gray-700">Air quality / process chain</span>
-            <div className="relative group shrink-0">
-              <button
-                type="button"
-                className="text-gray-400 hover:text-gray-700 transition-colors"
-                aria-label="Air tier info"
-              >
-                <Info size={14} />
-              </button>
-              <div className="pointer-events-none absolute right-0 top-6 z-50 hidden w-80 rounded-lg border border-gray-200 bg-white p-2 text-[10px] text-gray-700 shadow-lg group-hover:block">
-                <div className="font-bold text-gray-900 mb-1">
-                  {selectedAirTier.label} — AQI band {selectedAirTier.rangeLabel}
-                </div>
-                <div className="leading-relaxed">{selectedAirTier.description}</div>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 flex flex-col gap-2">
-            <div className="flex justify-between text-xs font-bold">
-              <span className="text-gray-700">{selectedAirTier.label}</span>
-              <span className={clsx('font-mono', selectedAirTier.statusColorClass)}>
-                AQI band {selectedAirTier.rangeLabel} (ref. {selectedAirTier.aqiWorst})
-              </span>
-            </div>
-            <div className="text-[10px] text-gray-600">
-              Extra budget from air tier:{' '}
-              <span className="font-bold text-gray-900">{formatCurrency(airBudgetAdd)}</span>
-              <span className="text-gray-500"> — {selectedAirTier.statusLabel}</span>
-            </div>
-            <input
-              type="range"
-              min={0}
-              max={AIR_TIERS.length - 1}
-              step={1}
-              value={airTierIndex}
-              onChange={(e) => handleAirTierChange(Number(e.target.value))}
-              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-gray-800"
-            />
-            <div className="grid grid-cols-4 gap-1 text-[9px] text-gray-500 text-center leading-tight">
-              {AIR_TIERS.map((t, i) => (
-                <span key={t.id} className={clsx(i === airTierIndex && 'font-bold text-gray-900')}>
-                  {t.label}
-                </span>
+          <div className="flex flex-col gap-1">
+            <label className="font-bold text-xs text-gray-700">Facility</label>
+            <select
+              value={selectedFacilityId}
+              onChange={(e) => handleFacilityChange(e.target.value as AirTierId)}
+              className="p-2 border rounded bg-gray-50 text-sm"
+            >
+              {AIR_TIERS.map(t => (
+                <option key={t.id} value={t.id}>
+                  {t.label} (+{Math.round(t.budgetAdd / 1_000_000)}M)
+                </option>
               ))}
-            </div>
-            <div className="text-[10px] text-gray-500">
-              Move right for worse air quality bands; extraction is the default (lowest band). Higher tiers add
-              scenario budget: +$0M / +$2M / +$4M / +$6M.
-            </div>
+            </select>
           </div>
         </div>
 
@@ -407,7 +365,7 @@ export const DeveloperView: React.FC = () => {
           <div className="text-[10px] text-blue-800/80">
             Mine scenario {formatCurrency(baseScenarioBudget)}
             {airBudgetAdd > 0 && (
-              <span> + air tier {formatCurrency(airBudgetAdd)}</span>
+              <span> + facility {formatCurrency(airBudgetAdd)}</span>
             )}
           </div>
           <div className={clsx("text-xs font-bold mt-1 px-2 py-0.5 rounded-full", remainingBudget > 0 ? "bg-green-100 text-green-700" : "bg-gray-200 text-gray-500")}>
@@ -494,6 +452,29 @@ export const DeveloperView: React.FC = () => {
                 Budget limit reached — slider clamped to max allowed spend.
               </div>
             )}
+          </div>
+
+          {/* Slider 3: Air Quality (linked to facility) */}
+          <div className="flex flex-col gap-1">
+            <div className="flex justify-between text-xs font-bold">
+              <span className="text-gray-700 flex items-center gap-1">Air Quality</span>
+              <span className={clsx('font-mono', selectedFacility.statusColorClass)}>
+                {selectedFacility.label}: AQI {selectedFacility.rangeLabel}
+              </span>
+            </div>
+            <input
+              type="range"
+              min={0}
+              max={200}
+              step={1}
+              value={selectedFacility.aqiWorst}
+              disabled
+              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-not-allowed accent-gray-700 opacity-80"
+            />
+            <div className="flex justify-between text-[10px] text-gray-500">
+              <span>Facility add-on: {formatCurrency(airBudgetAdd)}</span>
+              <span className="font-bold">{selectedFacility.statusLabel}</span>
+            </div>
           </div>
 
           {/* Slider 3: Community (Read-Only Visualization of Selected Items) */}
