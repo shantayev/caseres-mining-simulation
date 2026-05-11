@@ -1,9 +1,8 @@
-import React, { useState } from 'react';
+import React from 'react';
 import clsx from 'clsx';
-import { MapPin } from 'lucide-react';
 
-type NoBuildAreaId = 'none' | 'mountain' | 'oldtown' | 'aquifer' | 'campus';
-type SelectableNoBuildId = Exclude<NoBuildAreaId, 'none'>;
+export type NoBuildAreaId = 'none' | 'mountain' | 'oldtown' | 'aquifer' | 'campus';
+export type SelectableNoBuildId = Exclude<NoBuildAreaId, 'none'>;
 
 const NO_BUILD_AREAS: {
   id: NoBuildAreaId;
@@ -33,10 +32,16 @@ const NO_BUILD_AREAS: {
   },
 ];
 
-/** Joint-only: no-build chips + baseline strip + regional map (CommunityView unchanged). */
-export const JointNoBuildSection: React.FC = () => {
-  const [selectedNoBuildIds, setSelectedNoBuildIds] = useState<SelectableNoBuildId[]>([]);
+export interface JointNoBuildToolbarProps {
+  selectedNoBuildIds: SelectableNoBuildId[];
+  onToggle: (id: NoBuildAreaId) => void;
+}
 
+/** Area chips + summary (used above chart/map row). */
+export const JointNoBuildToolbar: React.FC<JointNoBuildToolbarProps> = ({
+  selectedNoBuildIds,
+  onToggle,
+}) => {
   const noBuildSummaryText =
     selectedNoBuildIds.length === 0
       ? NO_BUILD_AREAS.find(a => a.id === 'none')?.description ?? ''
@@ -45,20 +50,8 @@ export const JointNoBuildSection: React.FC = () => {
           .filter(Boolean)
           .join(', ');
 
-  const toggleNoBuildArea = (id: NoBuildAreaId) => {
-    if (id === 'none') {
-      setSelectedNoBuildIds([]);
-      return;
-    }
-    setSelectedNoBuildIds(prev =>
-      prev.includes(id as SelectableNoBuildId)
-        ? prev.filter(x => x !== id)
-        : [...prev, id as SelectableNoBuildId]
-    );
-  };
-
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-3 flex flex-col gap-3 shrink-0">
+    <div className="rounded-xl border border-gray-200 bg-white p-3 shrink-0">
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
         <div>
           <div className="text-xs font-bold text-gray-700">Areas to avoid (community constraint)</div>
@@ -78,7 +71,7 @@ export const JointNoBuildSection: React.FC = () => {
             <button
               key={area.id}
               type="button"
-              onClick={() => toggleNoBuildArea(area.id)}
+              onClick={() => onToggle(area.id)}
               className={clsx(
                 'px-2 py-1 rounded-full text-[10px] font-bold border transition-colors',
                 area.id === 'none'
@@ -100,34 +93,40 @@ export const JointNoBuildSection: React.FC = () => {
           ))}
         </div>
       </div>
+    </div>
+  );
+};
 
-      <div className="flex flex-col gap-2">
-        <h2 className="text-sm font-bold text-gray-700 flex items-center gap-2">
-          <MapPin size={18} /> Projected impact
-        </h2>
-        <div className="h-36 bg-gray-100 rounded-lg overflow-hidden border border-gray-300 relative flex items-center justify-center">
-          <img src="/baseline.png" alt="Baseline" className="w-full h-full object-cover" />
-        </div>
+export interface JointNoBuildMapPanelProps {
+  selectedNoBuildIds: SelectableNoBuildId[];
+}
 
-        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-          <div className="px-2 py-1 bg-gray-50 border-b text-[10px] font-bold text-gray-700 flex items-center justify-between">
-            <span>No-build map</span>
-            <span className="text-gray-500">
-              Selected:{' '}
-              {selectedNoBuildIds.length === 0
-                ? 'None'
-                : selectedNoBuildIds
-                    .map(id => NO_BUILD_AREAS.find(a => a.id === id)?.label)
-                    .filter(Boolean)
-                    .join(', ')}
-            </span>
-          </div>
-          <div className="relative w-full aspect-[4/3] bg-gray-100 max-h-56">
-            <img
-              src="/regional-map.png"
-              alt="Regional map"
-              className="absolute inset-0 w-full h-full object-cover"
-            />
+/**
+ * Right column: regional map only with no-build shading (full map visible via object-contain).
+ */
+export const JointNoBuildMapPanel: React.FC<JointNoBuildMapPanelProps> = ({ selectedNoBuildIds }) => {
+  const selectedLabels =
+    selectedNoBuildIds.length === 0
+      ? 'None'
+      : selectedNoBuildIds
+          .map(id => NO_BUILD_AREAS.find(a => a.id === id)?.label)
+          .filter(Boolean)
+          .join(', ');
+
+  return (
+    <div className="rounded-xl border border-gray-200 bg-white overflow-hidden flex flex-col min-h-[320px] lg:min-h-[min(72vh,640px)] h-full">
+      <div className="px-2 py-1.5 bg-gray-50 border-b text-[10px] font-bold text-gray-700 flex items-center justify-between shrink-0">
+        <span>No-build map</span>
+        <span className="text-gray-500 font-normal">Selected: {selectedLabels}</span>
+      </div>
+      <div className="flex-1 min-h-[280px] bg-gray-100 flex items-center justify-center p-2">
+        <div className="relative w-full max-w-full aspect-[4/3] max-h-[min(68vh,620px)] mx-auto">
+          <img
+            src="/regional-map.png"
+            alt="Regional map with no-build zones"
+            className="absolute inset-0 w-full h-full object-contain object-center select-none"
+          />
+          <div className="pointer-events-none absolute inset-0">
             <div
               className={clsx(
                 'absolute top-[6%] left-[18%] w-[70%] h-[30%] rounded-full bg-red-500 blur-2xl transition-opacity duration-300',
@@ -153,10 +152,10 @@ export const JointNoBuildSection: React.FC = () => {
               )}
             />
           </div>
-          <div className="px-2 py-1 text-[10px] text-gray-500">
-            Shaded zones show all selected “do not build here” constraints.
-          </div>
         </div>
+      </div>
+      <div className="px-2 py-1 text-[10px] text-gray-500 border-t bg-white shrink-0">
+        Shaded zones show all selected “do not build here” constraints.
       </div>
     </div>
   );
