@@ -201,8 +201,12 @@ export const JointDeveloperPanel: React.FC<JointDeveloperPanelProps> = ({ onMetr
 
   const totalAllocated = allocWater + allocWaste + communitySpend;
   const remainingBudget = totalBudget - totalAllocated;
+  const budgetOverrun = totalAllocated > totalBudget;
   const maxWaterSpend = Math.max(0, totalBudget - (allocWaste + communitySpend));
   const maxWasteSpend = Math.max(0, totalBudget - (allocWater + communitySpend));
+  /** Range max must be >= current value when allocation exceeds total budget. */
+  const waterSliderMax = Math.max(WATER_SPEND_MAX_USD, allocWater, maxWaterSpend);
+  const wasteSliderMax = Math.max(WASTE_SPEND_MAX_USD, allocWaste, maxWasteSpend);
 
   // 3. Environmental Model Calculations
   // Water
@@ -358,44 +362,8 @@ export const JointDeveloperPanel: React.FC<JointDeveloperPanelProps> = ({ onMetr
 
   const handleFacilityChange = (nextId: AirTierId) => {
     const tier = AIR_TIERS.find(t => t.id === nextId) ?? AIR_TIERS[0];
-    const mineIdx = Math.max(0, MINE_SIZES.findIndex(s => s.value === selectedSize.value));
-    const capacityIdx = Math.max(0, CAPACITIES.findIndex(c => c.value === selectedCapacity.value));
-    const mineBudgetAdd = mineIdx * 2_000_000;
-    const capacityBudgetAdd = capacityIdx * 2_000_000;
-    const nextTotal = mineBudgetAdd + capacityBudgetAdd + tier.budgetAdd + BASELINE_WATER_WASTE_MITIGATION_USD;
     setSelectedFacilityId(tier.id);
-
-    // If the new facility reduces total budget below current spend, clamp water/waste to fit.
-    const spend = allocWater + allocWaste + communitySpend;
-    if (spend <= nextTotal) return;
-
-    let wa = allocWater;
-    let w = allocWaste;
-    for (let i = 0; i < 6; i++) {
-      const room = nextTotal - communitySpend;
-      const maxForW = Math.max(0, room - wa);
-      const maxForWa = Math.max(0, room - w);
-      w = clampMitigationLeverSpend(w, maxForW, WASTE_SPEND_MAX_USD);
-      wa = clampMitigationLeverSpend(wa, maxForWa, WATER_SPEND_MAX_USD);
-    }
-    setAllocWaste(w);
-    setAllocWater(wa);
-
-    // Keep displayed results in sync with the clamped spends.
-    const S0_new = selectedSize.waste;
-    const Smin_new = ALPHA_S * S0_new;
-    const S_final_new =
-      Smin_new + (S0_new - Smin_new) * Math.exp(-K_S * (w / 1_000_000));
-    const W0_new = selectedCapacity.water;
-    const Wmin_new = ALPHA_W * W0_new;
-    const W_final_new =
-      Wmin_new + (W0_new - Wmin_new) * Math.exp(-K_W * (wa / 1_000_000));
-
-    setTargetWasteTon(clampWasteTargetStep(S_final_new));
-    setTargetWaterM3(clampWaterTargetStep(W_final_new));
-
-    setWaterClamped(true);
-    setWasteClamped(true);
+    // Do not auto-adjust water/waste when total budget drops; user fixes overrun via sliders or benefits.
   };
 
   const handleFacilityBudgetSliderChange = (rawValue: number) => {
@@ -490,9 +458,24 @@ export const JointDeveloperPanel: React.FC<JointDeveloperPanelProps> = ({ onMetr
               <span>{' '}· Air quality {formatCurrency(airBudgetAdd)}</span>
             )}
           </div>
-          <div className={clsx("text-xs font-bold mt-1 px-2 py-0.5 rounded-full", remainingBudget > 0 ? "bg-green-100 text-green-700" : "bg-gray-200 text-gray-500")}>
+          <div
+            className={clsx(
+              'text-xs font-bold mt-1 px-2 py-0.5 rounded-full',
+              budgetOverrun
+                ? 'bg-red-100 text-red-800'
+                : remainingBudget > 0
+                  ? 'bg-green-100 text-green-700'
+                  : 'bg-gray-200 text-gray-500'
+            )}
+          >
             Remaining: {formatCurrency(remainingBudget)}
           </div>
+          {budgetOverrun && (
+            <p className="text-[11px] text-red-700 font-semibold mt-2 leading-snug max-w-md">
+              Total allocation exceeds this mitigation budget. Reduce water mitigation spend, waste mitigation
+              spend, or unselect community benefits until remaining is zero or positive.
+            </p>
+          )}
         </div>
 
         {/* Step 2: 3 Independent Sliders */}
@@ -507,7 +490,7 @@ export const JointDeveloperPanel: React.FC<JointDeveloperPanelProps> = ({ onMetr
             <input 
               type="range"
               min={MITIGATION_SPEND_MIN_USD}
-              max={WATER_SPEND_MAX_USD}
+              max={waterSliderMax}
               step={MITIGATION_STEP_USD}
               value={allocWater}
               onChange={(e) => applyWaterTarget(Number(e.target.value))}
@@ -540,7 +523,7 @@ export const JointDeveloperPanel: React.FC<JointDeveloperPanelProps> = ({ onMetr
             <input 
               type="range"
               min={MITIGATION_SPEND_MIN_USD}
-              max={WASTE_SPEND_MAX_USD}
+              max={wasteSliderMax}
               step={MITIGATION_STEP_USD}
               value={allocWaste}
               onChange={(e) => applyWasteTarget(Number(e.target.value))}
@@ -594,7 +577,12 @@ export const JointDeveloperPanel: React.FC<JointDeveloperPanelProps> = ({ onMetr
             
             {/* Visual Budget Bar (Not a slider anymore, just a meter) */}
             <div className="w-full h-2 bg-gray-200 rounded-lg overflow-hidden">
-               <div className="h-full bg-green-500 transition-all" style={{ width: `${(communitySpend / totalBudget) * 100}%` }} />
+               <div
+                 className="h-full bg-green-500 transition-all"
+                 style={{
+                   width: `${Math.min(100, totalBudget > 0 ? (communitySpend / totalBudget) * 100 : 0)}%`,
+                 }}
+               />
             </div>
             
             {/* Community Benefits Selection List */}
