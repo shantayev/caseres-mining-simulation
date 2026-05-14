@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Droplets, Trash2, DollarSign, Download, Settings, Users, CheckCircle } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -141,8 +141,12 @@ const finalForAlloc = (params: { baseline: number; min: number; k: number; alloc
   return min + (baseline - min) * Math.exp(-k * (alloc / 1_000_000));
 };
 
+export interface JointDeveloperPanelProps {
+  onMetricsChange?: (m: { totalBudget: number; selectedBenefits: string[] }) => void;
+}
 
-export const DeveloperView: React.FC = () => {
+/** Joint-only copy of developer controls (DeveloperView unchanged). Omits right-hand mine image. */
+export const JointDeveloperPanel: React.FC<JointDeveloperPanelProps> = ({ onMetricsChange }) => {
   // State 1: Configuration
   const [selectedSize, setSelectedSize] = useState(MINE_SIZES[0]); // Default lowest
   const [selectedCapacity, setSelectedCapacity] = useState(CAPACITIES[0]); // Default lowest
@@ -183,6 +187,10 @@ export const DeveloperView: React.FC = () => {
   const selectedFacility = AIR_TIERS.find(t => t.id === selectedFacilityId) ?? AIR_TIERS[0];
   const airBudgetAdd = selectedFacility.budgetAdd;
   const totalBudget = baseScenarioBudget + airBudgetAdd + BASELINE_WATER_WASTE_MITIGATION_USD;
+
+  useEffect(() => {
+    onMetricsChange?.({ totalBudget, selectedBenefits });
+  }, [totalBudget, selectedBenefits, onMetricsChange]);
 
   // Derived Budget State
   // Calculate Community Spend from checkboxes, NOT slider
@@ -382,10 +390,8 @@ export const DeveloperView: React.FC = () => {
   };
 
   return (
-    <div className="flex-1 flex gap-4 min-h-0 overflow-hidden relative font-sans text-gray-900 h-full">
-      
-      {/* LEFT PANEL: Inputs & Controls (Scrollable) */}
-      <div className="flex-[2] bg-white rounded-xl shadow-lg border border-gray-200 p-4 flex flex-col gap-4 overflow-y-auto h-full">
+    <div className="flex-1 flex flex-col min-h-0 overflow-hidden relative font-sans text-gray-900">
+      <div className="flex-1 bg-white rounded-xl shadow-lg border border-gray-200 p-4 flex flex-col gap-4 overflow-y-auto min-h-0">
         
         <div className="border-b pb-2">
           <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
@@ -618,23 +624,6 @@ export const DeveloperView: React.FC = () => {
         </button>
 
       </div>
-
-      {/* RIGHT PANEL: Dynamic Visualization */}
-      <div className="flex-[3] bg-gray-100 rounded-xl border border-gray-300 overflow-hidden relative flex items-center justify-center">
-        {/* Dynamic Image */}
-        <img 
-          src={selectedSize.image} 
-          alt={`Mine Size ${selectedSize.label}`}
-          className="w-full h-full object-contain p-4"
-        />
-        
-        <div className="absolute top-4 right-4 bg-white/90 p-2 rounded shadow text-xs">
-          <div className="font-bold mb-1">Visualizing:</div>
-          <div>Size: {selectedSize.label}</div>
-          <div>Capacity: {selectedCapacity.label}</div>
-        </div>
-      </div>
-
     </div>
   );
 };

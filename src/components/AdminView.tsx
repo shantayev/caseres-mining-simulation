@@ -1,7 +1,7 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import clsx from 'clsx';
 import { Upload, AlertTriangle, CheckCircle, XCircle, FileText } from 'lucide-react';
-import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Legend, Label, Cell } from 'recharts';
+import { BenefitUtilityCostChart } from './BenefitUtilityCostChart';
 
 // --- Types ---
 
@@ -27,60 +27,6 @@ const SIZE_LABELS: Record<string, string> = {
 
 const SIZE_INDICES: Record<string, number> = {
   '8km': 0, '4km': 1, '2km': 2, '1km': 3, '0.5km': 4, 'oppose': 5
-};
-
-// --- Data for Chart (41 Combinations) ---
-// Cost in $, Utility 0-1
-const COMBINATIONS = [
-  { id: 1, cost: 12500000, utility: 0.80, label: '8km: R+E+C' },
-  { id: 2, cost: 10900000, utility: 0.73, label: '8km: R+E+I' },
-  { id: 3, cost: 10700000, utility: 0.67, label: '8km: R+E+P' },
-  { id: 4, cost: 10400000, utility: 0.66, label: '8km: R+C+I' },
-  { id: 5, cost: 6400000, utility: 0.60, label: '8km: E+C+I' },
-  { id: 6, cost: 10200000, utility: 0.60, label: '8km: R+C+P' },
-  { id: 7, cost: 6200000, utility: 0.54, label: '8km: E+C+P' },
-  { id: 8, cost: 8600000, utility: 0.53, label: '8km: R+I+P' },
-  { id: 9, cost: 4600000, utility: 0.47, label: '8km: E+I+P' },
-  { id: 10, cost: 4100000, utility: 0.40, label: '8km: C+I+P' },
-  { id: 11, cost: 10000000, utility: 0.60, label: '4km: R+E' },
-  { id: 12, cost: 9500000, utility: 0.53, label: '4km: R+C' },
-  { id: 13, cost: 5500000, utility: 0.47, label: '4km: E+C' },
-  { id: 14, cost: 7900000, utility: 0.46, label: '4km: R+I' },
-  { id: 15, cost: 3900000, utility: 0.40, label: '4km: E+I' },
-  { id: 16, cost: 7700000, utility: 0.40, label: '4km: R+P' },
-  { id: 17, cost: 3700000, utility: 0.34, label: '4km: E+P' },
-  { id: 18, cost: 3400000, utility: 0.33, label: '4km: C+I' },
-  { id: 19, cost: 3200000, utility: 0.27, label: '4km: C+P' },
-  { id: 20, cost: 1600000, utility: 0.20, label: '4km: I+P' },
-  { id: 21, cost: 10000000, utility: 0.60, label: '2km: R+E' },
-  { id: 22, cost: 9500000, utility: 0.53, label: '2km: R+C' },
-  { id: 23, cost: 5500000, utility: 0.47, label: '2km: E+C' },
-  { id: 24, cost: 7900000, utility: 0.46, label: '2km: R+I' },
-  { id: 25, cost: 3900000, utility: 0.40, label: '2km: E+I' },
-  { id: 26, cost: 7700000, utility: 0.40, label: '2km: R+P' },
-  { id: 27, cost: 3700000, utility: 0.34, label: '2km: E+P' },
-  { id: 28, cost: 3400000, utility: 0.33, label: '2km: C+I' },
-  { id: 29, cost: 3200000, utility: 0.27, label: '2km: C+P' },
-  { id: 30, cost: 1600000, utility: 0.20, label: '2km: I+P' },
-  { id: 31, cost: 7000000, utility: 0.33, label: '1km: R' },
-  { id: 32, cost: 3000000, utility: 0.27, label: '1km: E' },
-  { id: 33, cost: 2500000, utility: 0.20, label: '1km: C' },
-  { id: 34, cost: 900000, utility: 0.13, label: '1km: I' },
-  { id: 35, cost: 700000, utility: 0.07, label: '1km: P' },
-  { id: 36, cost: 7000000, utility: 0.33, label: '0.5km: R' },
-  { id: 37, cost: 3000000, utility: 0.27, label: '0.5km: E' },
-  { id: 38, cost: 2500000, utility: 0.20, label: '0.5km: C' },
-  { id: 39, cost: 900000, utility: 0.13, label: '0.5km: I' },
-  { id: 40, cost: 700000, utility: 0.07, label: '0.5km: P' },
-  { id: 41, cost: 0, utility: 0.00, label: 'Oppose' },
-];
-
-const BENEFIT_VALUES: Record<string, {cost: number, util: number}> = {
-  'research': { cost: 7000000, util: 0.33 },
-  'energy': { cost: 3000000, util: 0.27 },
-  'canoe': { cost: 2500000, util: 0.20 },
-  'irrigation': { cost: 900000, util: 0.13 },
-  'park': { cost: 700000, util: 0.07 },
 };
 
 // --- Helper Functions ---
@@ -124,22 +70,6 @@ const getDevSizeId = (sizeVal: number): string => {
   if (sizeVal >= 1.5) return '2km'; 
   if (sizeVal >= 0.8) return '1km'; 
   return '0.5km'; 
-};
-
-// Calculate metrics for the actual community choice
-const calculateCommunityMetrics = (benefitIds: string[]) => {
-  let cost = 0;
-  let util = 0;
-  benefitIds.forEach(id => {
-    const data = BENEFIT_VALUES[id];
-    if (data) {
-      cost += data.cost;
-      util += data.util;
-    } else {
-      console.warn(`Benefit ID not found in lookup: "${id}"`); // Warn on mismatch
-    }
-  });
-  return { cost, util };
 };
 
 export const AdminView: React.FC = () => {
@@ -225,94 +155,20 @@ export const AdminView: React.FC = () => {
 
   const result = getResult();
 
-  // Prepare Chart Data with Dynamic Highlight
-  const communityChoice = communityData ? calculateCommunityMetrics(communityData.selectedBenefitIds) : null;
-  
-  const chartData = useMemo(() => {
-    return COMBINATIONS.map(item => {
-      let isMatch = false;
-      if (communityChoice) {
-        // Allow for small floating point differences in utility (0.01)
-        const costDiff = Math.abs(item.cost - communityChoice.cost);
-        const utilDiff = Math.abs(item.utility - communityChoice.util);
-        
-        // Exact cost match expected, relaxed utility match
-        if (costDiff < 100 && utilDiff < 0.015) {
-          isMatch = true;
-        }
-      }
-      return { ...item, isMatch };
-    });
-  }, [communityChoice]);
-
-  // Format budget for display
   const devBudget = developerData ? developerData.total_budget : null;
+  const highlightBenefitIds = communityData?.selectedBenefitIds ?? [];
 
   return (
     <div className="flex-1 bg-white rounded-xl shadow-lg border border-gray-200 p-8 overflow-auto flex flex-col gap-8">
       <h2 className="text-3xl font-bold text-gray-800 border-b pb-4">Negotiation Analysis Dashboard</h2>
 
-      {/* CHART SECTION */}
-      <div className="h-96 w-full bg-gray-50 rounded-xl border p-4 relative">
-        <h3 className="text-lg font-bold text-gray-700 mb-2 text-center">Community Benefit Options Analysis</h3>
-        <ResponsiveContainer width="100%" height="90%">
-          <ScatterChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis 
-              type="number" 
-              dataKey="cost" 
-              name="R&D Cost" 
-              unit="$" 
-              tickFormatter={(val) => `$${(val/1000000).toFixed(1)}M`}
-              domain={[0, 20000000]} // Up to 20M to fit budget lines
-            >
-              <Label value="R&D Cost ($)" offset={-10} position="insideBottom" />
-            </XAxis>
-            <YAxis type="number" dataKey="utility" name="Utility" domain={[0, 1]}>
-              <Label value="Utility Value" angle={-90} position="insideLeft" />
-            </YAxis>
-            <Tooltip 
-              cursor={{ strokeDasharray: '3 3' }} 
-              content={({ active, payload }) => {
-                if (active && payload && payload.length) {
-                  const data = payload[0].payload;
-                  return (
-                    <div className="bg-white p-2 border rounded shadow text-xs">
-                      <p className="font-bold">{data.label}</p>
-                      <p>Cost: ${(data.cost/1000000).toFixed(1)}M</p>
-                      <p>Utility: {data.utility.toFixed(2)}</p>
-                      {data.isMatch && <p className="text-red-500 font-bold mt-1">★ Community Choice</p>}
-                    </div>
-                  );
-                }
-                return null;
-              }}
-            />
-            <Legend />
-            
-            {/* 1. All 41 Combinations with Conditional Styling */}
-            <Scatter name="Possible Combinations" data={chartData} fill="#8884d8" fillOpacity={0.6}>
-              {chartData.map((entry, index) => (
-                <Cell 
-                  key={`cell-${index}`} 
-                  fill={entry.isMatch ? '#ff0000' : '#8884d8'} 
-                  stroke={entry.isMatch ? '#ff0000' : 'none'}
-                  strokeWidth={2}
-                />
-              ))}
-            </Scatter>
-
-            {/* 2. Developer Budget Line */}
-            {devBudget && (
-              <ReferenceLine 
-                x={devBudget} 
-                stroke="green" 
-                strokeDasharray="3 3" 
-                label={{ position: 'top', value: 'Miner Allocated Budget', fill: 'green', fontSize: 12 }} 
-              />
-            )}
-          </ScatterChart>
-        </ResponsiveContainer>
+      <div className="h-96 w-full p-1 flex flex-col min-h-0">
+        <BenefitUtilityCostChart
+          developerBudget={devBudget}
+          highlightBenefitIds={highlightBenefitIds}
+          className="flex-1 min-h-0 h-full"
+          title="Community Benefit Options Analysis"
+        />
       </div>
 
       <div className="grid grid-cols-2 gap-12">

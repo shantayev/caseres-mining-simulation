@@ -2,9 +2,10 @@ import React, { useState } from 'react';
 import { CommunityView } from './components/CommunityView';
 import { DeveloperView } from './components/DeveloperView';
 import { AdminView } from './components/AdminView';
+import { JointView } from './components/joint/JointView';
 import { Lock } from 'lucide-react';
 
-type ViewMode = 'landing' | 'community' | 'developer' | 'admin';
+type ViewMode = 'landing' | 'community' | 'developer' | 'joint' | 'admin';
 
 function App() {
   const [viewMode, setViewMode] = useState<ViewMode>('landing');
@@ -19,6 +20,8 @@ function App() {
       setViewMode('community');
     } else if (pin === '5678') {
       setViewMode('developer');
+    } else if (pin === '9999') {
+      setViewMode('joint');
     } else if (pin === '5555') {
       setViewMode('admin');
     } else {
@@ -75,6 +78,7 @@ function App() {
         <h1 className="text-2xl font-bold text-gray-800">
           {viewMode === 'community' ? 'Social Teams Matrix' : 
            viewMode === 'developer' ? 'Technical Teams Matrix' :
+           viewMode === 'joint' ? 'Joint Negotiation Workspace' :
            'Administrator Dashboard'}
         </h1>
         <button 
@@ -91,6 +95,7 @@ function App() {
       {/* Main Content Area */}
       {viewMode === 'community' && <CommunityView />}
       {viewMode === 'developer' && <DeveloperView />}
+      {viewMode === 'joint' && <JointView />}
       {viewMode === 'admin' && <AdminView />}
     </div>
   );
