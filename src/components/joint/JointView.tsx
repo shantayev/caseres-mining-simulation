@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   JointNoBuildToolbar,
   type NoBuildAreaId,
@@ -9,7 +9,6 @@ import type { BenefitPlacement } from '../map/DraggableRegionalMap';
 import { BenefitUtilityCostChart } from '../BenefitUtilityCostChart';
 import { JointDeveloperPanel } from './JointDeveloperPanel';
 import { getCommunityBenefit, type CommunityBenefitId } from '../../data/communityBenefits';
-import { isPointInNoBuildZone } from '../map/noBuildZones';
 
 /**
  * Joint negotiation: no-build toolbar, utility chart (left) + draggable regional map (right), developer controls below.
@@ -57,7 +56,6 @@ export const JointView: React.FC = () => {
 
   const handleBenefitPlace = useCallback(
     (id: CommunityBenefitId, xPct: number, yPct: number) => {
-      if (isPointInNoBuildZone(xPct, yPct, selectedNoBuildIds)) return;
       const benefit = getCommunityBenefit(id);
       if (!benefit) return;
       if (!selectedBenefits.includes(id)) {
@@ -71,7 +69,7 @@ export const JointView: React.FC = () => {
       }
       setBenefitPlacements(prev => ({ ...prev, [id]: { xPct, yPct } }));
     },
-    [selectedBenefits, remainingBudget, selectedNoBuildIds]
+    [selectedBenefits, remainingBudget]
   );
 
   const handleBenefitRemove = useCallback((id: CommunityBenefitId) => {
@@ -94,27 +92,6 @@ export const JointView: React.FC = () => {
         : [...prev, id as SelectableNoBuildId]
     );
   }, []);
-
-  useEffect(() => {
-    setBenefitPlacements(prev => {
-      const removed: CommunityBenefitId[] = [];
-      const next = { ...prev };
-      for (const id of Object.keys(prev) as CommunityBenefitId[]) {
-        const pos = prev[id];
-        if (pos && isPointInNoBuildZone(pos.xPct, pos.yPct, selectedNoBuildIds)) {
-          delete next[id];
-          removed.push(id);
-        }
-      }
-      if (removed.length > 0) {
-        setSelectedBenefits(b =>
-          b.filter(x => !removed.includes(x as CommunityBenefitId))
-        );
-        return next;
-      }
-      return prev;
-    });
-  }, [selectedNoBuildIds]);
 
   return (
     <div className="flex-1 flex flex-col gap-3 min-h-0 overflow-y-auto overflow-x-hidden text-gray-900">

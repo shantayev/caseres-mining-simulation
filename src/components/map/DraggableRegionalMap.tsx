@@ -148,7 +148,7 @@ export const DraggableRegionalMap: React.FC<DraggableRegionalMapProps> = ({
       const container = containerRef.current;
       if (!container) return;
       const pct = clientToMapPercent(e.clientX, e.clientY, container, imageRect);
-      if (!pct || !canPlaceAt(pct.xPct, pct.yPct)) return;
+      if (!pct) return;
       onBenefitPlace(benefitId, clampPct(pct.xPct), clampPct(pct.yPct));
     }
   };
@@ -172,9 +172,9 @@ export const DraggableRegionalMap: React.FC<DraggableRegionalMapProps> = ({
     if (!pct) return;
     const x = clampPct(pct.xPct);
     const y = clampPct(pct.yPct);
-    if (!canPlaceAt(x, y)) return;
 
     if (draggingCategory === 'industrial') {
+      if (!canPlaceAt(x, y)) return;
       setPlacedIndustrial(prev =>
         prev.map(s => (s.id === draggingId ? { ...s, xPct: x, yPct: y } : s))
       );
@@ -412,7 +412,7 @@ export const DraggableRegionalMap: React.FC<DraggableRegionalMapProps> = ({
       </div>
 
       <div className="px-2 py-1 text-[10px] text-gray-500 border-t bg-white shrink-0 space-y-0.5">
-        <p>Shaded zones = selected no-build areas — symbols cannot be placed there.</p>
+        <p>Shaded zones = no-build areas — industrial symbols (top row) cannot be placed there.</p>
         <p>
           Drag industrial symbols from above or community benefits from the left; double-click or ✕
           to remove.
