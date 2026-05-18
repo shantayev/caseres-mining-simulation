@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Droplets, Trash2, DollarSign, Download, Settings, Users, CheckCircle } from 'lucide-react';
 import clsx from 'clsx';
+import { COMMUNITY_BENEFITS } from '../../data/communityBenefits';
 
 // --- Constants & Data ---
 
@@ -19,15 +20,6 @@ const CAPACITIES = [
   { value: 1500000, label: '1.5 Mton/yr', water: 750000 },
   { value: 3000000, label: '3.0 Mton/yr', water: 1500000 },
   { value: 5000000, label: '5.0 Mton/yr', water: 2500000 },
-];
-
-// Community Benefits Costs
-const COMMUNITY_BENEFITS = [
-  { id: 'park', label: 'Park/Forestry', cost: 700000 },
-  { id: 'irrigation', label: 'Upgrade Irrigation System', cost: 900000 },
-  { id: 'canoe', label: 'Underground Canoe System', cost: 2500000 },
-  { id: 'energy', label: 'Energy Storage Program', cost: 3000000 },
-  { id: 'research', label: 'New Research Program', cost: 7000000 },
 ];
 
 // Parameters for Mitigation Model
@@ -142,11 +134,21 @@ const finalForAlloc = (params: { baseline: number; min: number; k: number; alloc
 };
 
 export interface JointDeveloperPanelProps {
-  onMetricsChange?: (m: { totalBudget: number; selectedBenefits: string[] }) => void;
+  selectedBenefits: string[];
+  onToggleBenefit: (id: string) => void;
+  onMetricsChange?: (m: {
+    totalBudget: number;
+    selectedBenefits: string[];
+    remainingBudget: number;
+  }) => void;
 }
 
 /** Joint-only copy of developer controls (DeveloperView unchanged). Omits right-hand mine image. */
-export const JointDeveloperPanel: React.FC<JointDeveloperPanelProps> = ({ onMetricsChange }) => {
+export const JointDeveloperPanel: React.FC<JointDeveloperPanelProps> = ({
+  selectedBenefits,
+  onToggleBenefit,
+  onMetricsChange,
+}) => {
   // State 1: Configuration
   const [selectedSize, setSelectedSize] = useState(MINE_SIZES[0]); // Default lowest
   const [selectedCapacity, setSelectedCapacity] = useState(CAPACITIES[0]); // Default lowest
@@ -154,9 +156,6 @@ export const JointDeveloperPanel: React.FC<JointDeveloperPanelProps> = ({ onMetr
   // State 2: Budget Allocation (Raw Dollar Amounts) — default to minimum spend ($0.3M) per lever
   const [allocWater, setAllocWater] = useState(MITIGATION_SPEND_MIN_USD);
   const [allocWaste, setAllocWaste] = useState(MITIGATION_SPEND_MIN_USD);
-  // Replaced AllocCommunity with explicitly selected items
-  const [selectedBenefits, setSelectedBenefits] = useState<string[]>([]);
-
   // Outcome slider state (final outcome values)
   const [targetWaterM3, setTargetWaterM3] = useState<number>(() => {
     const W0 = CAPACITIES[0].water;
@@ -188,10 +187,6 @@ export const JointDeveloperPanel: React.FC<JointDeveloperPanelProps> = ({ onMetr
   const airBudgetAdd = selectedFacility.budgetAdd;
   const totalBudget = baseScenarioBudget + airBudgetAdd + BASELINE_WATER_WASTE_MITIGATION_USD;
 
-  useEffect(() => {
-    onMetricsChange?.({ totalBudget, selectedBenefits });
-  }, [totalBudget, selectedBenefits, onMetricsChange]);
-
   // Derived Budget State
   // Calculate Community Spend from checkboxes, NOT slider
   const communitySpend = selectedBenefits.reduce((sum, id) => {
@@ -201,6 +196,10 @@ export const JointDeveloperPanel: React.FC<JointDeveloperPanelProps> = ({ onMetr
 
   const totalAllocated = allocWater + allocWaste + communitySpend;
   const remainingBudget = totalBudget - totalAllocated;
+
+  useEffect(() => {
+    onMetricsChange?.({ totalBudget, selectedBenefits, remainingBudget });
+  }, [totalBudget, selectedBenefits, remainingBudget, onMetricsChange]);
   const budgetOverrun = totalAllocated > totalBudget;
   const maxWaterSpend = Math.max(0, totalBudget - (allocWaste + communitySpend));
   const maxWasteSpend = Math.max(0, totalBudget - (allocWater + communitySpend));
@@ -344,20 +343,6 @@ export const JointDeveloperPanel: React.FC<JointDeveloperPanelProps> = ({ onMetr
     setTargetWasteTon(clampWasteTargetStep(finalForAlloc({ baseline: S0, min: Smin, k: K_S, alloc: allocCap })));
     setWasteClamped(raw > maxWasteSpend);
     setWasteAutoJumpDelta(null);
-  };
-
-  const toggleBenefit = (id: string, cost: number) => {
-    if (selectedBenefits.includes(id)) {
-      // Remove
-      setSelectedBenefits(prev => prev.filter(b => b !== id));
-    } else {
-      // Add (Check budget first)
-      if (remainingBudget >= cost) {
-        setSelectedBenefits(prev => [...prev, id]);
-      } else {
-        alert('Not enough budget remaining! Increase Total Mitigation Budget or reduce other allocations.');
-      }
-    }
   };
 
   const handleFacilityChange = (nextId: AirTierId) => {
@@ -594,7 +579,7 @@ export const JointDeveloperPanel: React.FC<JointDeveloperPanelProps> = ({ onMetr
                 return (
                   <div 
                     key={benefit.id} 
-                    onClick={() => toggleBenefit(benefit.id, benefit.cost)}
+                    onClick={() => onToggleBenefit(benefit.id)}
                     className={clsx(
                       "flex justify-between items-center p-1.5 rounded text-[10px] border transition-colors cursor-pointer select-none", 
                       isSelected ? "bg-green-100 border-green-300 text-green-900" : 
