@@ -5,8 +5,10 @@ import {
   type SelectableNoBuildId,
 } from './JointNoBuildSection';
 import { DraggableRegionalMap } from '../map/DraggableRegionalMap';
+import type { BenefitPlacement } from '../map/DraggableRegionalMap';
 import { BenefitUtilityCostChart } from '../BenefitUtilityCostChart';
 import { JointDeveloperPanel } from './JointDeveloperPanel';
+import { getCommunityBenefit, type CommunityBenefitId } from '../../data/communityBenefits';
 
 /**
  * Joint negotiation: no-build toolbar, utility chart (left) + draggable regional map (right), developer controls below.
@@ -14,15 +16,70 @@ import { JointDeveloperPanel } from './JointDeveloperPanel';
 export const JointView: React.FC = () => {
   const [chartBudget, setChartBudget] = useState<number | null>(null);
   const [chartBenefits, setChartBenefits] = useState<string[]>([]);
+  const [remainingBudget, setRemainingBudget] = useState(0);
   const [selectedNoBuildIds, setSelectedNoBuildIds] = useState<SelectableNoBuildId[]>([]);
+  const [selectedBenefits, setSelectedBenefits] = useState<string[]>([]);
+  const [benefitPlacements, setBenefitPlacements] = useState<
+    Partial<Record<CommunityBenefitId, BenefitPlacement>>
+  >({});
 
   const handleMetricsChange = useCallback(
-    (m: { totalBudget: number; selectedBenefits: string[] }) => {
+    (m: { totalBudget: number; selectedBenefits: string[]; remainingBudget: number }) => {
       setChartBudget(m.totalBudget);
       setChartBenefits(m.selectedBenefits);
+      setRemainingBudget(m.remainingBudget);
     },
     []
   );
+
+  const toggleBenefit = useCallback(
+    (id: string) => {
+      const benefit = getCommunityBenefit(id);
+      if (!benefit) return;
+      if (selectedBenefits.includes(id)) {
+        setSelectedBenefits(prev => prev.filter(b => b !== id));
+        setBenefitPlacements(prev => {
+          const next = { ...prev };
+          delete next[benefit.id];
+          return next;
+        });
+      } else if (remainingBudget >= benefit.cost) {
+        setSelectedBenefits(prev => [...prev, id]);
+      } else {
+        alert(
+          'Not enough budget remaining! Increase Total Mitigation Budget or reduce other allocations.'
+        );
+      }
+    },
+    [selectedBenefits, remainingBudget]
+  );
+
+  const handleBenefitPlace = useCallback(
+    (id: CommunityBenefitId, xPct: number, yPct: number) => {
+      const benefit = getCommunityBenefit(id);
+      if (!benefit) return;
+      if (!selectedBenefits.includes(id)) {
+        if (remainingBudget < benefit.cost) {
+          alert(
+            'Not enough budget remaining! Increase Total Mitigation Budget or reduce other allocations.'
+          );
+          return;
+        }
+        setSelectedBenefits(prev => [...prev, id]);
+      }
+      setBenefitPlacements(prev => ({ ...prev, [id]: { xPct, yPct } }));
+    },
+    [selectedBenefits, remainingBudget]
+  );
+
+  const handleBenefitRemove = useCallback((id: CommunityBenefitId) => {
+    setSelectedBenefits(prev => prev.filter(b => b !== id));
+    setBenefitPlacements(prev => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+  }, []);
 
   const toggleNoBuildArea = useCallback((id: NoBuildAreaId) => {
     if (id === 'none') {
@@ -39,8 +96,9 @@ export const JointView: React.FC = () => {
   return (
     <div className="flex-1 flex flex-col gap-3 min-h-0 overflow-y-auto overflow-x-hidden text-gray-900">
       <p className="text-[11px] text-gray-600 px-1 shrink-0">
-        Joint workspace: choose areas to avoid, drag symbols onto the regional map, compare benefit utility vs
-        cost, then adjust technical mitigation (same rules as the technical teams screen).
+        Joint workspace: choose areas to avoid, drag industrial and community-benefit symbols onto the
+        regional map, compare benefit utility vs cost, then adjust technical mitigation (same rules as
+        the technical teams screen).
       </p>
 
       <JointNoBuildToolbar selectedNoBuildIds={selectedNoBuildIds} onToggle={toggleNoBuildArea} />
@@ -55,12 +113,23 @@ export const JointView: React.FC = () => {
           />
         </div>
         <div className="flex flex-col min-h-[320px]">
-          <DraggableRegionalMap selectedNoBuildIds={selectedNoBuildIds} />
+          <DraggableRegionalMap
+            selectedNoBuildIds={selectedNoBuildIds}
+            selectedBenefits={selectedBenefits}
+            benefitPlacements={benefitPlacements}
+            remainingBudget={remainingBudget}
+            onBenefitPlace={handleBenefitPlace}
+            onBenefitRemove={handleBenefitRemove}
+          />
         </div>
       </div>
 
       <div className="min-h-[320px] shrink-0 flex flex-col">
-        <JointDeveloperPanel onMetricsChange={handleMetricsChange} />
+        <JointDeveloperPanel
+          selectedBenefits={selectedBenefits}
+          onToggleBenefit={toggleBenefit}
+          onMetricsChange={handleMetricsChange}
+        />
       </div>
     </div>
   );
