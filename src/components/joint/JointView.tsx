@@ -1,15 +1,15 @@
 import React, { useState, useCallback } from 'react';
 import {
   JointNoBuildToolbar,
-  JointNoBuildMapPanel,
   type NoBuildAreaId,
   type SelectableNoBuildId,
 } from './JointNoBuildSection';
+import { DraggableRegionalMap } from '../map/DraggableRegionalMap';
 import { BenefitUtilityCostChart } from '../BenefitUtilityCostChart';
 import { JointDeveloperPanel } from './JointDeveloperPanel';
 
 /**
- * Joint negotiation: no-build toolbar, then utility chart (left) + regional map (right), then developer controls.
+ * Joint negotiation: no-build toolbar, utility chart (left) + draggable regional map (right), developer controls below.
  */
 export const JointView: React.FC = () => {
   const [chartBudget, setChartBudget] = useState<number | null>(null);
@@ -39,8 +39,8 @@ export const JointView: React.FC = () => {
   return (
     <div className="flex-1 flex flex-col gap-3 min-h-0 overflow-y-auto overflow-x-hidden text-gray-900">
       <p className="text-[11px] text-gray-600 px-1 shrink-0">
-        Joint workspace: choose areas to avoid, compare benefit utility vs cost, then adjust technical mitigation
-        (same rules as the technical teams screen).
+        Joint workspace: choose areas to avoid, drag symbols onto the regional map, compare benefit utility vs
+        cost, then adjust technical mitigation (same rules as the technical teams screen).
       </p>
 
       <JointNoBuildToolbar selectedNoBuildIds={selectedNoBuildIds} onToggle={toggleNoBuildArea} />
@@ -55,7 +55,7 @@ export const JointView: React.FC = () => {
           />
         </div>
         <div className="flex flex-col min-h-[320px]">
-          <JointNoBuildMapPanel selectedNoBuildIds={selectedNoBuildIds} />
+          <DraggableRegionalMap selectedNoBuildIds={selectedNoBuildIds} />
         </div>
       </div>
 
