@@ -34,7 +34,7 @@ export interface DraggableRegionalMapProps {
   selectedNoBuildIds: SelectableNoBuildId[];
   selectedBenefits: string[];
   benefitPlacements: Partial<Record<CommunityBenefitId, BenefitPlacement>>;
-  remainingBudget: number;
+  unassignedBudget: number;
   onBenefitPlace: (id: CommunityBenefitId, xPct: number, yPct: number) => void;
   onBenefitRemove: (id: CommunityBenefitId) => void;
 }
@@ -49,7 +49,7 @@ export const DraggableRegionalMap: React.FC<DraggableRegionalMapProps> = ({
   selectedNoBuildIds,
   selectedBenefits,
   benefitPlacements,
-  remainingBudget,
+  unassignedBudget,
   onBenefitPlace,
   onBenefitRemove,
 }) => {
@@ -206,7 +206,7 @@ export const DraggableRegionalMap: React.FC<DraggableRegionalMapProps> = ({
     const benefit = COMMUNITY_BENEFITS.find(b => b.id === id);
     if (!benefit) return false;
     if (selectedBenefits.includes(id)) return true;
-    return remainingBudget >= benefit.cost;
+    return unassignedBudget >= benefit.cost;
   };
 
   const placedBenefitCount = Object.keys(benefitPlacements).length;
