@@ -25,6 +25,7 @@ export const MITIGATION_SPEND_MIN_USD = 300_000;
 export const MITIGATION_STEP_USD = 2_000_000;
 export const WATER_SPEND_MAX_USD = MITIGATION_SPEND_MIN_USD + 3 * MITIGATION_STEP_USD;
 export const WASTE_SPEND_MAX_USD = MITIGATION_SPEND_MIN_USD + 4 * MITIGATION_STEP_USD;
+export const AIR_SPEND_MAX_USD = 6_000_000;
 export const BASELINE_WATER_WASTE_MITIGATION_USD = MITIGATION_SPEND_MIN_USD * 2;
 
 export type AirTierId = 'extraction' | 'refining' | 'processing' | 'advanced_manufacturing';
@@ -134,9 +135,29 @@ export function scenarioDiscretionaryPoolUsd(mineIdx: number, capacityIdx: numbe
 export function computeTotalBudget(
   mineIdx: number,
   capacityIdx: number,
-  airBudgetAdd: number
+  airAllocUsd: number
 ) {
   const scenarioStepsUsd = (mineIdx + capacityIdx) * MITIGATION_STEP_USD;
   const requiredFloorsUsd = BASELINE_WATER_WASTE_MITIGATION_USD + scenarioStepsUsd;
-  return requiredFloorsUsd + scenarioDiscretionaryPoolUsd(mineIdx, capacityIdx) + airBudgetAdd;
+  return requiredFloorsUsd + scenarioDiscretionaryPoolUsd(mineIdx, capacityIdx) + airAllocUsd;
+}
+
+export function airTierForBudgetAdd(budgetAdd: number) {
+  return AIR_TIERS.find(t => t.budgetAdd === budgetAdd) ?? AIR_TIERS[0];
+}
+
+/** Snap to tier steps (0 / 2M / 4M / 6M) and cap by affordable spend. */
+export function clampAirSpend(raw: number, maxAffordableUsd: number) {
+  const stepped = Math.max(
+    0,
+    Math.min(AIR_SPEND_MAX_USD, Math.round(raw / MITIGATION_STEP_USD) * MITIGATION_STEP_USD)
+  );
+  const cap = Math.max(0, Math.min(AIR_SPEND_MAX_USD, maxAffordableUsd));
+  let best = 0;
+  for (const tier of AIR_TIERS) {
+    if (tier.budgetAdd <= stepped && tier.budgetAdd <= cap) {
+      best = Math.max(best, tier.budgetAdd);
+    }
+  }
+  return best;
 }

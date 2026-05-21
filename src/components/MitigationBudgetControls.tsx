@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Droplets, Trash2, DollarSign, Download, Settings, Users, CheckCircle, Lock, Unlock } from 'lucide-react';
+import { Droplets, Trash2, Wind, DollarSign, Download, Settings, Users, CheckCircle, Lock, Unlock } from 'lucide-react';
 import clsx from 'clsx';
 import { COMMUNITY_BENEFITS } from '../data/communityBenefits';
 import {
@@ -128,8 +128,8 @@ export const MitigationBudgetControls: React.FC<MitigationBudgetControlsProps> =
         </p>
       ) : (
         <p className="text-[10px] text-gray-600 leading-snug">
-          Scenario locked. Raise water or waste above locked minimums, or select community benefits, from
-          unassigned budget.
+          Scenario locked. Raise water, waste, or air quality above locked minimums, or select community
+          benefits, from unassigned budget.
         </p>
       )}
 
@@ -163,12 +163,13 @@ export const MitigationBudgetControls: React.FC<MitigationBudgetControlsProps> =
           Required floors (mine + capacity steps) {formatCurrency(b.baseScenarioBudget + b.BASELINE_WATER_WASTE_MITIGATION_USD)}
           {' · '}
           Discretionary pool {formatCurrency(b.discretionaryPoolUsd)}
-          {b.airBudgetAdd > 0 && <span> · Air quality {formatCurrency(b.airBudgetAdd)}</span>}
+          {b.allocAir > 0 && <span> · Air quality {formatCurrency(b.allocAir)}</span>}
         </div>
         {b.scenarioLocked && (
           <div className="text-[10px] text-gray-700 mt-1">
             Locked floors: water {formatCurrency(b.lockedWaterFloor)}, waste{' '}
-            {formatCurrency(b.lockedWasteFloor)}
+            {formatCurrency(b.lockedWasteFloor)}, air {formatCurrency(b.lockedAirFloor)} (
+            {b.selectedFacility.label})
           </div>
         )}
         <div
@@ -185,7 +186,7 @@ export const MitigationBudgetControls: React.FC<MitigationBudgetControlsProps> =
         </div>
         {b.budgetOverrun && b.scenarioLocked && (
           <p className="text-[11px] text-red-700 font-semibold mt-2 leading-snug max-w-md">
-            Total allocation exceeds this mitigation budget. Reduce water or waste spend, or unselect
+            Total allocation exceeds this mitigation budget. Reduce water, waste, or air spend, or unselect
             community benefits.
           </p>
         )}
@@ -201,8 +202,8 @@ export const MitigationBudgetControls: React.FC<MitigationBudgetControlsProps> =
           </div>
           <input
             type="range"
-            min={b.waterSliderMin}
-            max={b.waterSliderMax}
+            min={b.MITIGATION_SPEND_MIN_USD}
+            max={b.WATER_SPEND_MAX_USD}
             step={MITIGATION_STEP_USD}
             value={b.allocWater}
             disabled={!b.scenarioLocked}
@@ -238,8 +239,8 @@ export const MitigationBudgetControls: React.FC<MitigationBudgetControlsProps> =
           </div>
           <input
             type="range"
-            min={b.wasteSliderMin}
-            max={b.wasteSliderMax}
+            min={b.MITIGATION_SPEND_MIN_USD}
+            max={b.WASTE_SPEND_MAX_USD}
             step={MITIGATION_STEP_USD}
             value={b.allocWaste}
             disabled={!b.scenarioLocked}
@@ -266,17 +267,40 @@ export const MitigationBudgetControls: React.FC<MitigationBudgetControlsProps> =
           )}
         </div>
 
-        {b.scenarioLocked && (
-          <div className="flex flex-col gap-1 p-2 rounded-lg bg-gray-50 border border-gray-200">
-            <div className="flex justify-between text-xs font-bold text-gray-700">
-              <span>Facility (locked)</span>
-              <span>{b.selectedFacility.label}</span>
-            </div>
-            <div className="text-[10px] text-gray-500">
-              Air quality budget: {formatCurrency(b.airBudgetAdd)} — chosen in step 1
-            </div>
+        <div className="flex flex-col gap-1">
+          <div className="flex justify-between text-xs font-bold">
+            <span className="text-gray-700 flex items-center gap-1">
+              <Wind size={12} /> Air Quality
+            </span>
+            <span className="font-mono">{formatCurrency(b.allocAir)}</span>
           </div>
-        )}
+          <input
+            type="range"
+            min={0}
+            max={b.AIR_SPEND_MAX_USD}
+            step={MITIGATION_STEP_USD}
+            value={b.allocAir}
+            disabled={!b.scenarioLocked}
+            onChange={e => b.applyAirTarget(Number(e.target.value))}
+            className={clsx(
+              'w-full h-2 bg-gray-200 rounded-lg appearance-none accent-gray-700',
+              b.scenarioLocked ? 'cursor-pointer' : 'cursor-not-allowed'
+            )}
+          />
+          <div className="flex justify-between text-[10px] text-gray-500">
+            <span>
+              {b.scenarioLocked
+                ? `Min locked ${formatCurrency(b.lockedAirFloor)} — drag up only · ${b.selectedFacility.label}`
+                : 'Set by facility in step 1'}
+            </span>
+            <span className="font-bold text-gray-700">
+              {b.selectedFacility.statusLabel} (AQI {b.selectedFacility.rangeLabel})
+            </span>
+          </div>
+          {b.airClamped && (
+            <div className="text-[10px] font-bold text-red-600">Not enough unassigned budget for that level.</div>
+          )}
+        </div>
 
         <div className={clsx('flex flex-col gap-1', !b.scenarioLocked && 'pointer-events-none')}>
           <div className="flex justify-between text-xs font-bold">
