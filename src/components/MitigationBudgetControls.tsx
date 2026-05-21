@@ -21,7 +21,7 @@ export interface MitigationBudgetControlsProps {
   onMetricsChange?: (m: {
     totalBudget: number;
     selectedBenefits: string[];
-    remainingBudget: number;
+    unassignedBudget: number;
   }) => void;
   onScenarioStateChange?: (s: { selectedSize: MineSize; selectedCapacity: Capacity }) => void;
   showSubmitButton?: boolean;
@@ -41,9 +41,9 @@ export const MitigationBudgetControls: React.FC<MitigationBudgetControlsProps> =
     onMetricsChange?.({
       totalBudget: b.totalBudget,
       selectedBenefits,
-      remainingBudget: b.remainingBudget,
+      unassignedBudget: b.unassignedBudget,
     });
-  }, [b.totalBudget, b.remainingBudget, selectedBenefits, onMetricsChange]);
+  }, [b.totalBudget, b.unassignedBudget, selectedBenefits, onMetricsChange]);
 
   useEffect(() => {
     onScenarioStateChange?.({
@@ -123,13 +123,13 @@ export const MitigationBudgetControls: React.FC<MitigationBudgetControlsProps> =
 
       {!b.scenarioLocked ? (
         <p className="text-[10px] text-gray-600 leading-snug">
-          Adjust mine (moves waste mitigation $), capacity (moves water mitigation $), and facility (adds
-          budget only). Lock when ready — then spend remaining budget in step 2.
+          Adjust mine (raises waste floor), capacity (raises water floor), and facility (adds budget). Lock
+          when ready — mine/capacity steps also add a discretionary pool for step 2.
         </p>
       ) : (
         <p className="text-[10px] text-gray-600 leading-snug">
-          Scenario locked. Raise water or waste above locked minimums, or select community benefits, using
-          remaining budget.
+          Scenario locked. Raise water or waste above locked minimums, or select community benefits, from
+          unassigned budget.
         </p>
       )}
 
@@ -160,9 +160,9 @@ export const MitigationBudgetControls: React.FC<MitigationBudgetControlsProps> =
           {formatNumber(b.totalBudget)}
         </div>
         <div className="text-[10px] text-blue-800/80 leading-relaxed">
-          Mine scenario {formatCurrency(b.baseScenarioBudget)}
+          Required floors (mine + capacity steps) {formatCurrency(b.baseScenarioBudget + b.BASELINE_WATER_WASTE_MITIGATION_USD)}
           {' · '}
-          Min water+waste baseline {formatCurrency(b.BASELINE_WATER_WASTE_MITIGATION_USD)}
+          Discretionary pool {formatCurrency(b.discretionaryPoolUsd)}
           {b.airBudgetAdd > 0 && <span> · Air quality {formatCurrency(b.airBudgetAdd)}</span>}
         </div>
         {b.scenarioLocked && (
@@ -176,12 +176,12 @@ export const MitigationBudgetControls: React.FC<MitigationBudgetControlsProps> =
             'text-xs font-bold mt-1 px-2 py-0.5 rounded-full',
             b.budgetOverrun
               ? 'bg-red-100 text-red-800'
-              : b.remainingBudget > 0
+              : b.unassignedBudget > 0
                 ? 'bg-green-100 text-green-700'
                 : 'bg-gray-200 text-gray-500'
           )}
         >
-          Remaining: {formatCurrency(b.remainingBudget)}
+          {b.scenarioLocked ? 'Unassigned' : 'Available after lock'}: {formatCurrency(b.unassignedBudget)}
         </div>
         {b.budgetOverrun && b.scenarioLocked && (
           <p className="text-[11px] text-red-700 font-semibold mt-2 leading-snug max-w-md">
@@ -219,19 +219,13 @@ export const MitigationBudgetControls: React.FC<MitigationBudgetControlsProps> =
                   ? `Min locked ${formatCurrency(b.lockedWaterFloor)} — drag up only`
                   : 'Set by capacity in step 1'}
               </span>
-              {b.waterAutoJumpDelta !== null && (
-                <span className="font-bold text-blue-700">
-                  Auto-set: {b.waterAutoJumpDelta >= 0 ? '+' : ''}
-                  {formatCurrency(b.waterAutoJumpDelta)}
-                </span>
-              )}
             </span>
             <span className="font-bold text-blue-600">
               Result: {formatNumber(b.targetWaterM3)} m³ ({b.waterReduction.toFixed(0)}% ↓)
             </span>
           </div>
           {b.waterClamped && (
-            <div className="text-[10px] font-bold text-red-600">Not enough remaining budget for that level.</div>
+            <div className="text-[10px] font-bold text-red-600">Not enough unassigned budget for that level.</div>
           )}
         </div>
 
@@ -262,19 +256,13 @@ export const MitigationBudgetControls: React.FC<MitigationBudgetControlsProps> =
                   ? `Min locked ${formatCurrency(b.lockedWasteFloor)} — drag up only`
                   : 'Set by mine size in step 1'}
               </span>
-              {b.wasteAutoJumpDelta !== null && (
-                <span className="font-bold text-orange-700">
-                  Auto-set: {b.wasteAutoJumpDelta >= 0 ? '+' : ''}
-                  {formatCurrency(b.wasteAutoJumpDelta)}
-                </span>
-              )}
             </span>
             <span className="font-bold text-orange-600">
               Result: {formatNumber(b.targetWasteTon)} tons ({b.wasteReduction.toFixed(0)}% ↓)
             </span>
           </div>
           {b.wasteClamped && (
-            <div className="text-[10px] font-bold text-red-600">Not enough remaining budget for that level.</div>
+            <div className="text-[10px] font-bold text-red-600">Not enough unassigned budget for that level.</div>
           )}
         </div>
 
@@ -311,7 +299,7 @@ export const MitigationBudgetControls: React.FC<MitigationBudgetControlsProps> =
           <div className="grid grid-cols-1 gap-1 mt-2">
             {COMMUNITY_BENEFITS.map(benefit => {
               const isSelected = selectedBenefits.includes(benefit.id);
-              const canAfford = b.scenarioLocked && b.remainingBudget >= benefit.cost;
+              const canAfford = b.scenarioLocked && b.unassignedBudget >= benefit.cost;
               return (
                 <div
                   key={benefit.id}

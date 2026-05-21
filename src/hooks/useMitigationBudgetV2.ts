@@ -18,6 +18,7 @@ import {
   waterSpendForCapacityIndex,
   wasteSpendForMineIndex,
   computeTotalBudget,
+  scenarioDiscretionaryPoolUsd,
   type AirTierId,
   type MineSize,
   type Capacity,
@@ -62,8 +63,6 @@ export function useMitigationBudgetV2({
     );
   });
 
-  const [waterAutoJumpDelta, setWaterAutoJumpDelta] = useState<number | null>(null);
-  const [wasteAutoJumpDelta, setWasteAutoJumpDelta] = useState<number | null>(null);
   const [waterClamped, setWaterClamped] = useState(false);
   const [wasteClamped, setWasteClamped] = useState(false);
 
@@ -72,6 +71,7 @@ export function useMitigationBudgetV2({
   const selectedFacility = AIR_TIERS.find(t => t.id === selectedFacilityId) ?? AIR_TIERS[0];
   const airBudgetAdd = selectedFacility.budgetAdd;
   const baseScenarioBudget = mineStepIndex * MITIGATION_STEP_USD + capacityStepIndex * MITIGATION_STEP_USD;
+  const discretionaryPoolUsd = scenarioDiscretionaryPoolUsd(mineStepIndex, capacityStepIndex);
   const totalBudget = computeTotalBudget(mineStepIndex, capacityStepIndex, airBudgetAdd);
 
   const communitySpend = useMemo(
@@ -86,7 +86,7 @@ export function useMitigationBudgetV2({
   );
 
   const totalAllocated = allocWater + allocWaste + communitySpend;
-  const remainingBudget = totalBudget - totalAllocated;
+  const unassignedBudget = totalBudget - totalAllocated;
   const budgetOverrun = totalAllocated > totalBudget;
 
   const W0 = selectedCapacity.water;
@@ -143,7 +143,6 @@ export function useMitigationBudgetV2({
     const capacityIdx = Math.max(0, CAPACITIES.findIndex(c => c.value === cap.value));
     const desiredWater = waterSpendForCapacityIndex(capacityIdx);
     setSelectedCapacity(cap);
-    setWaterAutoJumpDelta(desiredWater - allocWater);
     setAllocWater(desiredWater);
     syncWaterOutcome(desiredWater, cap);
     setWaterClamped(false);
@@ -156,7 +155,6 @@ export function useMitigationBudgetV2({
     const mineIdx = Math.max(0, MINE_SIZES.findIndex(s => s.value === size.value));
     const desiredWaste = wasteSpendForMineIndex(mineIdx);
     setSelectedSize(size);
-    setWasteAutoJumpDelta(desiredWaste - allocWaste);
     setAllocWaste(desiredWaste);
     syncWasteOutcome(desiredWaste, size);
     setWasteClamped(false);
@@ -171,8 +169,6 @@ export function useMitigationBudgetV2({
     setLockedWaterFloor(allocWater);
     setLockedWasteFloor(allocWaste);
     setScenarioLocked(true);
-    setWaterAutoJumpDelta(null);
-    setWasteAutoJumpDelta(null);
     setWaterClamped(false);
     setWasteClamped(false);
   };
@@ -189,8 +185,6 @@ export function useMitigationBudgetV2({
     onScenarioUnlock?.();
     setWaterClamped(false);
     setWasteClamped(false);
-    setWaterAutoJumpDelta(null);
-    setWasteAutoJumpDelta(null);
   };
 
   const applyWaterTarget = (desiredAllocUsd: number) => {
@@ -205,7 +199,6 @@ export function useMitigationBudgetV2({
       clampWaterTargetStep(finalForAlloc({ baseline: W0, min: Wmin, k: K_W, alloc: finalAlloc }))
     );
     setWaterClamped(raised > maxWaterSpendAffordable);
-    setWaterAutoJumpDelta(null);
   };
 
   const applyWasteTarget = (desiredAllocUsd: number) => {
@@ -220,7 +213,6 @@ export function useMitigationBudgetV2({
       clampWasteTargetStep(finalForAlloc({ baseline: S0, min: Smin, k: K_S, alloc: finalAlloc }))
     );
     setWasteClamped(raised > maxWasteSpendAffordable);
-    setWasteAutoJumpDelta(null);
   };
 
   const handleToggleBenefit = (id: string) => {
@@ -231,11 +223,11 @@ export function useMitigationBudgetV2({
       onToggleBenefit(id);
       return;
     }
-    if (remainingBudget >= benefit.cost) {
+    if (unassignedBudget >= benefit.cost) {
       onToggleBenefit(id);
     } else {
       alert(
-        'Not enough budget remaining! Reduce water or waste mitigation spend, or unlock scenario to change mine/capacity/facility.'
+        'Not enough unassigned budget. Reduce water or waste mitigation spend, or unlock scenario to change mine/capacity/facility.'
       );
     }
   };
@@ -266,17 +258,16 @@ export function useMitigationBudgetV2({
     lockedWasteFloor,
     targetWaterM3,
     targetWasteTon,
-    waterAutoJumpDelta,
-    wasteAutoJumpDelta,
     waterClamped,
     wasteClamped,
     mineStepIndex,
     capacityStepIndex,
     baseScenarioBudget,
+    discretionaryPoolUsd,
     airBudgetAdd,
     totalBudget,
     communitySpend,
-    remainingBudget,
+    unassignedBudget,
     budgetOverrun,
     waterReduction,
     wasteReduction,

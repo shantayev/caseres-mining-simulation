@@ -126,15 +126,17 @@ export function wasteSpendForMineIndex(mineIdx: number) {
   return MITIGATION_SPEND_MIN_USD + mineIdx * MITIGATION_STEP_USD;
 }
 
+/** Required water+waste floors at lock, plus discretionary pool from mine/capacity steps. */
+export function scenarioDiscretionaryPoolUsd(mineIdx: number, capacityIdx: number) {
+  return (mineIdx + capacityIdx) * MITIGATION_STEP_USD;
+}
+
 export function computeTotalBudget(
   mineIdx: number,
   capacityIdx: number,
   airBudgetAdd: number
 ) {
-  return (
-    mineIdx * MITIGATION_STEP_USD +
-    capacityIdx * MITIGATION_STEP_USD +
-    airBudgetAdd +
-    BASELINE_WATER_WASTE_MITIGATION_USD
-  );
+  const scenarioStepsUsd = (mineIdx + capacityIdx) * MITIGATION_STEP_USD;
+  const requiredFloorsUsd = BASELINE_WATER_WASTE_MITIGATION_USD + scenarioStepsUsd;
+  return requiredFloorsUsd + scenarioDiscretionaryPoolUsd(mineIdx, capacityIdx) + airBudgetAdd;
 }

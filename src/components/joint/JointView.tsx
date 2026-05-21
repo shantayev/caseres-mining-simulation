@@ -16,7 +16,7 @@ import { getCommunityBenefit, type CommunityBenefitId } from '../../data/communi
 export const JointView: React.FC = () => {
   const [chartBudget, setChartBudget] = useState<number | null>(null);
   const [chartBenefits, setChartBenefits] = useState<string[]>([]);
-  const [remainingBudget, setRemainingBudget] = useState(0);
+  const [unassignedBudget, setUnassignedBudget] = useState(0);
   const [selectedNoBuildIds, setSelectedNoBuildIds] = useState<SelectableNoBuildId[]>([]);
   const [selectedBenefits, setSelectedBenefits] = useState<string[]>([]);
   const [benefitPlacements, setBenefitPlacements] = useState<
@@ -24,10 +24,10 @@ export const JointView: React.FC = () => {
   >({});
 
   const handleMetricsChange = useCallback(
-    (m: { totalBudget: number; selectedBenefits: string[]; remainingBudget: number }) => {
+    (m: { totalBudget: number; selectedBenefits: string[]; unassignedBudget: number }) => {
       setChartBudget(m.totalBudget);
       setChartBenefits(m.selectedBenefits);
-      setRemainingBudget(m.remainingBudget);
+      setUnassignedBudget(m.unassignedBudget);
     },
     []
   );
@@ -43,15 +43,15 @@ export const JointView: React.FC = () => {
           delete next[benefit.id];
           return next;
         });
-      } else if (remainingBudget >= benefit.cost) {
+      } else if (unassignedBudget >= benefit.cost) {
         setSelectedBenefits(prev => [...prev, id]);
       } else {
         alert(
-          'Not enough budget remaining! Increase Total Mitigation Budget or reduce other allocations.'
+          'Not enough unassigned budget. Reduce water or waste spend, or unlock scenario to change mine/capacity/facility.'
         );
       }
     },
-    [selectedBenefits, remainingBudget]
+    [selectedBenefits, unassignedBudget]
   );
 
   const handleBenefitPlace = useCallback(
@@ -59,9 +59,9 @@ export const JointView: React.FC = () => {
       const benefit = getCommunityBenefit(id);
       if (!benefit) return;
       if (!selectedBenefits.includes(id)) {
-        if (remainingBudget < benefit.cost) {
+        if (unassignedBudget < benefit.cost) {
           alert(
-            'Not enough budget remaining! Increase Total Mitigation Budget or reduce other allocations.'
+            'Not enough unassigned budget. Reduce water or waste spend, or unlock scenario to change mine/capacity/facility.'
           );
           return;
         }
@@ -69,7 +69,7 @@ export const JointView: React.FC = () => {
       }
       setBenefitPlacements(prev => ({ ...prev, [id]: { xPct, yPct } }));
     },
-    [selectedBenefits, remainingBudget]
+    [selectedBenefits, unassignedBudget]
   );
 
   const handleBenefitRemove = useCallback((id: CommunityBenefitId) => {
@@ -122,7 +122,7 @@ export const JointView: React.FC = () => {
             selectedNoBuildIds={selectedNoBuildIds}
             selectedBenefits={selectedBenefits}
             benefitPlacements={benefitPlacements}
-            remainingBudget={remainingBudget}
+            unassignedBudget={unassignedBudget}
             onBenefitPlace={handleBenefitPlace}
             onBenefitRemove={handleBenefitRemove}
           />

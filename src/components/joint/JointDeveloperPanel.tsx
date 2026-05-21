@@ -8,7 +8,7 @@ export interface JointDeveloperPanelProps {
   onMetricsChange?: (m: {
     totalBudget: number;
     selectedBenefits: string[];
-    remainingBudget: number;
+    unassignedBudget: number;
   }) => void;
 }
 
