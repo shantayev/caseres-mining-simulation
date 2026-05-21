@@ -81,6 +81,11 @@ export const JointView: React.FC = () => {
     });
   }, []);
 
+  const handleScenarioUnlock = useCallback(() => {
+    setSelectedBenefits([]);
+    setBenefitPlacements({});
+  }, []);
+
   const toggleNoBuildArea = useCallback((id: NoBuildAreaId) => {
     if (id === 'none') {
       setSelectedNoBuildIds([]);
@@ -128,6 +133,7 @@ export const JointView: React.FC = () => {
         <JointDeveloperPanel
           selectedBenefits={selectedBenefits}
           onToggleBenefit={toggleBenefit}
+          onScenarioUnlock={handleScenarioUnlock}
           onMetricsChange={handleMetricsChange}
         />
       </div>

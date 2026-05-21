@@ -15,7 +15,7 @@ import {
 } from 'recharts';
 
 export const BENEFIT_VALUES: Record<string, { cost: number; util: number }> = {
-  research: { cost: 7000000, util: 0.33 },
+  research: { cost: 5000000, util: 0.33 },
   energy: { cost: 3000000, util: 0.27 },
   canoe: { cost: 2500000, util: 0.2 },
   irrigation: { cost: 900000, util: 0.13 },

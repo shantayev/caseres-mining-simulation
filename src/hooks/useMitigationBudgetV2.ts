@@ -1,0 +1,299 @@
+import { useState, useCallback, useMemo } from 'react';
+import { COMMUNITY_BENEFITS } from '../data/communityBenefits';
+import {
+  MINE_SIZES,
+  CAPACITIES,
+  AIR_TIERS,
+  MITIGATION_SPEND_MIN_USD,
+  MITIGATION_STEP_USD,
+  WATER_SPEND_MAX_USD,
+  WASTE_SPEND_MAX_USD,
+  BASELINE_WATER_WASTE_MITIGATION_USD,
+  ALPHA_W,
+  ALPHA_S,
+  K_W,
+  K_S,
+  clampMitigationLeverSpend,
+  finalForAlloc,
+  waterSpendForCapacityIndex,
+  wasteSpendForMineIndex,
+  computeTotalBudget,
+  type AirTierId,
+  type MineSize,
+  type Capacity,
+} from '../data/mitigationConstants';
+
+const clampWaterTargetStep = (value: number) => Math.round(value / 10_000) * 10_000;
+const clampWasteTargetStep = (value: number) => Math.round(value / 50_000) * 50_000;
+
+export interface UseMitigationBudgetV2Options {
+  selectedBenefits: string[];
+  onToggleBenefit: (id: string) => void;
+  onScenarioUnlock?: () => void;
+}
+
+export function useMitigationBudgetV2({
+  selectedBenefits,
+  onToggleBenefit,
+  onScenarioUnlock,
+}: UseMitigationBudgetV2Options) {
+  const [scenarioLocked, setScenarioLocked] = useState(false);
+  const [selectedSize, setSelectedSize] = useState<MineSize>(MINE_SIZES[0]);
+  const [selectedCapacity, setSelectedCapacity] = useState<Capacity>(CAPACITIES[0]);
+  const [selectedFacilityId, setSelectedFacilityId] = useState<AirTierId>('extraction');
+
+  const [allocWater, setAllocWater] = useState(MITIGATION_SPEND_MIN_USD);
+  const [allocWaste, setAllocWaste] = useState(MITIGATION_SPEND_MIN_USD);
+  const [lockedWaterFloor, setLockedWaterFloor] = useState(MITIGATION_SPEND_MIN_USD);
+  const [lockedWasteFloor, setLockedWasteFloor] = useState(MITIGATION_SPEND_MIN_USD);
+
+  const [targetWaterM3, setTargetWaterM3] = useState(() => {
+    const W0 = CAPACITIES[0].water;
+    const Wmin = ALPHA_W * W0;
+    return clampWaterTargetStep(
+      Wmin + (W0 - Wmin) * Math.exp(-K_W * (MITIGATION_SPEND_MIN_USD / 1_000_000))
+    );
+  });
+  const [targetWasteTon, setTargetWasteTon] = useState(() => {
+    const S0 = MINE_SIZES[0].waste;
+    const Smin = ALPHA_S * S0;
+    return clampWasteTargetStep(
+      Smin + (S0 - Smin) * Math.exp(-K_S * (MITIGATION_SPEND_MIN_USD / 1_000_000))
+    );
+  });
+
+  const [waterAutoJumpDelta, setWaterAutoJumpDelta] = useState<number | null>(null);
+  const [wasteAutoJumpDelta, setWasteAutoJumpDelta] = useState<number | null>(null);
+  const [waterClamped, setWaterClamped] = useState(false);
+  const [wasteClamped, setWasteClamped] = useState(false);
+
+  const mineStepIndex = Math.max(0, MINE_SIZES.findIndex(s => s.value === selectedSize.value));
+  const capacityStepIndex = Math.max(0, CAPACITIES.findIndex(c => c.value === selectedCapacity.value));
+  const selectedFacility = AIR_TIERS.find(t => t.id === selectedFacilityId) ?? AIR_TIERS[0];
+  const airBudgetAdd = selectedFacility.budgetAdd;
+  const baseScenarioBudget = mineStepIndex * MITIGATION_STEP_USD + capacityStepIndex * MITIGATION_STEP_USD;
+  const totalBudget = computeTotalBudget(mineStepIndex, capacityStepIndex, airBudgetAdd);
+
+  const communitySpend = useMemo(
+    () =>
+      scenarioLocked
+        ? selectedBenefits.reduce((sum, id) => {
+            const benefit = COMMUNITY_BENEFITS.find(b => b.id === id);
+            return sum + (benefit ? benefit.cost : 0);
+          }, 0)
+        : 0,
+    [scenarioLocked, selectedBenefits]
+  );
+
+  const totalAllocated = allocWater + allocWaste + communitySpend;
+  const remainingBudget = totalBudget - totalAllocated;
+  const budgetOverrun = totalAllocated > totalBudget;
+
+  const W0 = selectedCapacity.water;
+  const Wmin = ALPHA_W * W0;
+  const W_final = Wmin + (W0 - Wmin) * Math.exp(-K_W * (allocWater / 1_000_000));
+  const waterReduction = ((W0 - W_final) / W0) * 100;
+
+  const S0 = selectedSize.waste;
+  const Smin = ALPHA_S * S0;
+  const S_final = Smin + (S0 - Smin) * Math.exp(-K_S * (allocWaste / 1_000_000));
+  const wasteReduction = ((S0 - S_final) / S0) * 100;
+
+  const maxWaterSpendAffordable = Math.max(0, totalBudget - allocWaste - communitySpend);
+  const maxWasteSpendAffordable = Math.max(0, totalBudget - allocWater - communitySpend);
+
+  const waterSliderMin = scenarioLocked ? lockedWaterFloor : MITIGATION_SPEND_MIN_USD;
+  const wasteSliderMin = scenarioLocked ? lockedWasteFloor : MITIGATION_SPEND_MIN_USD;
+  const waterSliderMax = Math.max(
+    WATER_SPEND_MAX_USD,
+    allocWater,
+    scenarioLocked ? maxWaterSpendAffordable : WATER_SPEND_MAX_USD
+  );
+  const wasteSliderMax = Math.max(
+    WASTE_SPEND_MAX_USD,
+    allocWaste,
+    scenarioLocked ? maxWasteSpendAffordable : WASTE_SPEND_MAX_USD
+  );
+
+  const syncWaterOutcome = useCallback(
+    (waterUsd: number, capacity: Capacity) => {
+      const w0 = capacity.water;
+      const wmin = ALPHA_W * w0;
+      setTargetWaterM3(
+        clampWaterTargetStep(
+          wmin + (w0 - wmin) * Math.exp(-K_W * (waterUsd / 1_000_000))
+        )
+      );
+    },
+    []
+  );
+
+  const syncWasteOutcome = useCallback((wasteUsd: number, size: MineSize) => {
+    const s0 = size.waste;
+    const smin = ALPHA_S * s0;
+    setTargetWasteTon(
+      clampWasteTargetStep(smin + (s0 - smin) * Math.exp(-K_S * (wasteUsd / 1_000_000)))
+    );
+  }, []);
+
+  const handleCapacityChange = (capacityValue: number) => {
+    if (scenarioLocked) return;
+    const cap = CAPACITIES.find(c => c.value === capacityValue);
+    if (!cap) return;
+    const capacityIdx = Math.max(0, CAPACITIES.findIndex(c => c.value === cap.value));
+    const desiredWater = waterSpendForCapacityIndex(capacityIdx);
+    setSelectedCapacity(cap);
+    setWaterAutoJumpDelta(desiredWater - allocWater);
+    setAllocWater(desiredWater);
+    syncWaterOutcome(desiredWater, cap);
+    setWaterClamped(false);
+  };
+
+  const handleSizeChange = (sizeValue: number) => {
+    if (scenarioLocked) return;
+    const size = MINE_SIZES.find(s => s.value === sizeValue);
+    if (!size) return;
+    const mineIdx = Math.max(0, MINE_SIZES.findIndex(s => s.value === size.value));
+    const desiredWaste = wasteSpendForMineIndex(mineIdx);
+    setSelectedSize(size);
+    setWasteAutoJumpDelta(desiredWaste - allocWaste);
+    setAllocWaste(desiredWaste);
+    syncWasteOutcome(desiredWaste, size);
+    setWasteClamped(false);
+  };
+
+  const handleFacilityChange = (nextId: AirTierId) => {
+    if (scenarioLocked) return;
+    setSelectedFacilityId(nextId);
+  };
+
+  const lockScenario = () => {
+    setLockedWaterFloor(allocWater);
+    setLockedWasteFloor(allocWaste);
+    setScenarioLocked(true);
+    setWaterAutoJumpDelta(null);
+    setWasteAutoJumpDelta(null);
+    setWaterClamped(false);
+    setWasteClamped(false);
+  };
+
+  const unlockScenario = () => {
+    if (
+      !window.confirm(
+        'Unlock scenario? Step 2 allocations (extra slider spend and community benefits) will be reset.'
+      )
+    ) {
+      return;
+    }
+    setScenarioLocked(false);
+    onScenarioUnlock?.();
+    setWaterClamped(false);
+    setWasteClamped(false);
+    setWaterAutoJumpDelta(null);
+    setWasteAutoJumpDelta(null);
+  };
+
+  const applyWaterTarget = (desiredAllocUsd: number) => {
+    if (!scenarioLocked) return;
+    const raw = Number.isFinite(desiredAllocUsd) ? desiredAllocUsd : lockedWaterFloor;
+    const raised = Math.max(raw, lockedWaterFloor);
+    const clamped = Math.min(raised, WATER_SPEND_MAX_USD, maxWaterSpendAffordable);
+    const allocCap = clampMitigationLeverSpend(clamped, maxWaterSpendAffordable, WATER_SPEND_MAX_USD);
+    const finalAlloc = Math.max(allocCap, lockedWaterFloor);
+    setAllocWater(finalAlloc);
+    setTargetWaterM3(
+      clampWaterTargetStep(finalForAlloc({ baseline: W0, min: Wmin, k: K_W, alloc: finalAlloc }))
+    );
+    setWaterClamped(raised > maxWaterSpendAffordable);
+    setWaterAutoJumpDelta(null);
+  };
+
+  const applyWasteTarget = (desiredAllocUsd: number) => {
+    if (!scenarioLocked) return;
+    const raw = Number.isFinite(desiredAllocUsd) ? desiredAllocUsd : lockedWasteFloor;
+    const raised = Math.max(raw, lockedWasteFloor);
+    const clamped = Math.min(raised, WASTE_SPEND_MAX_USD, maxWasteSpendAffordable);
+    const allocCap = clampMitigationLeverSpend(clamped, maxWasteSpendAffordable, WASTE_SPEND_MAX_USD);
+    const finalAlloc = Math.max(allocCap, lockedWasteFloor);
+    setAllocWaste(finalAlloc);
+    setTargetWasteTon(
+      clampWasteTargetStep(finalForAlloc({ baseline: S0, min: Smin, k: K_S, alloc: finalAlloc }))
+    );
+    setWasteClamped(raised > maxWasteSpendAffordable);
+    setWasteAutoJumpDelta(null);
+  };
+
+  const handleToggleBenefit = (id: string) => {
+    if (!scenarioLocked) return;
+    const benefit = COMMUNITY_BENEFITS.find(b => b.id === id);
+    if (!benefit) return;
+    if (selectedBenefits.includes(id)) {
+      onToggleBenefit(id);
+      return;
+    }
+    if (remainingBudget >= benefit.cost) {
+      onToggleBenefit(id);
+    } else {
+      alert(
+        'Not enough budget remaining! Reduce water or waste mitigation spend, or unlock scenario to change mine/capacity/facility.'
+      );
+    }
+  };
+
+  const handleDownloadCSV = () => {
+    const benefitIdsStr = selectedBenefits.join('|');
+    const tier = selectedFacility;
+    const csvContent = `size_km2,capacity_mton,total_budget,water_alloc,waste_alloc,community_alloc,final_water_m3,final_waste_ton,selected_benefits,air_quality_enabled,air_process,air_quality_aqi,air_aqi_range,air_budget_add,scenario_locked\n${selectedSize.value},${selectedCapacity.value},${totalBudget},${allocWater},${allocWaste},${communitySpend},${W_final.toFixed(0)},${S_final.toFixed(0)},${benefitIdsStr},1,${tier.id},${airBudgetAdd},,${airBudgetAdd},${scenarioLocked ? 1 : 0}`;
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', 'mining_simulation_results.csv');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  return {
+    scenarioLocked,
+    selectedSize,
+    selectedCapacity,
+    selectedFacility,
+    selectedFacilityId,
+    allocWater,
+    allocWaste,
+    lockedWaterFloor,
+    lockedWasteFloor,
+    targetWaterM3,
+    targetWasteTon,
+    waterAutoJumpDelta,
+    wasteAutoJumpDelta,
+    waterClamped,
+    wasteClamped,
+    mineStepIndex,
+    capacityStepIndex,
+    baseScenarioBudget,
+    airBudgetAdd,
+    totalBudget,
+    communitySpend,
+    remainingBudget,
+    budgetOverrun,
+    waterReduction,
+    wasteReduction,
+    waterSliderMin,
+    wasteSliderMin,
+    waterSliderMax,
+    wasteSliderMax,
+    handleSizeChange,
+    handleCapacityChange,
+    handleFacilityChange,
+    lockScenario,
+    unlockScenario,
+    applyWaterTarget,
+    applyWasteTarget,
+    handleToggleBenefit,
+    handleDownloadCSV,
+    BASELINE_WATER_WASTE_MITIGATION_USD,
+    MITIGATION_STEP_USD,
+  };
+}
