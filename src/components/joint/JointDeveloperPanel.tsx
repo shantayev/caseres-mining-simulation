@@ -9,6 +9,9 @@ export interface JointDeveloperPanelProps {
     totalBudget: number;
     selectedBenefits: string[];
     unassignedBudget: number;
+    allocWater: number;
+    allocWaste: number;
+    allocAir: number;
   }) => void;
 }
 

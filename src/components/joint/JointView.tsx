@@ -6,7 +6,7 @@ import {
 } from './JointNoBuildSection';
 import { DraggableRegionalMap } from '../map/DraggableRegionalMap';
 import type { BenefitPlacement } from '../map/DraggableRegionalMap';
-import { BenefitUtilityCostChart } from '../BenefitUtilityCostChart';
+import { BenefitUtilityCostChart, type LeverAllocations } from '../BenefitUtilityCostChart';
 import { JointDeveloperPanel } from './JointDeveloperPanel';
 import { getCommunityBenefit, type CommunityBenefitId } from '../../data/communityBenefits';
 
@@ -17,6 +17,7 @@ export const JointView: React.FC = () => {
   const [chartBudget, setChartBudget] = useState<number | null>(null);
   const [chartBenefits, setChartBenefits] = useState<string[]>([]);
   const [unassignedBudget, setUnassignedBudget] = useState(0);
+  const [leverAllocations, setLeverAllocations] = useState<LeverAllocations | null>(null);
   const [selectedNoBuildIds, setSelectedNoBuildIds] = useState<SelectableNoBuildId[]>([]);
   const [selectedBenefits, setSelectedBenefits] = useState<string[]>([]);
   const [benefitPlacements, setBenefitPlacements] = useState<
@@ -24,10 +25,22 @@ export const JointView: React.FC = () => {
   >({});
 
   const handleMetricsChange = useCallback(
-    (m: { totalBudget: number; selectedBenefits: string[]; unassignedBudget: number }) => {
+    (m: {
+      totalBudget: number;
+      selectedBenefits: string[];
+      unassignedBudget: number;
+      allocWater: number;
+      allocWaste: number;
+      allocAir: number;
+    }) => {
       setChartBudget(m.totalBudget);
       setChartBenefits(m.selectedBenefits);
       setUnassignedBudget(m.unassignedBudget);
+      setLeverAllocations({
+        allocWater: m.allocWater,
+        allocWaste: m.allocWaste,
+        allocAir: m.allocAir,
+      });
     },
     []
   );
@@ -113,6 +126,7 @@ export const JointView: React.FC = () => {
           <BenefitUtilityCostChart
             developerBudget={chartBudget}
             highlightBenefitIds={chartBenefits}
+            leverAllocations={leverAllocations}
             title="Utility vs cost (funded community benefits)"
             className="h-full min-h-[320px] flex-1"
           />
