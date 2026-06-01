@@ -22,6 +22,9 @@ export interface MitigationBudgetControlsProps {
     totalBudget: number;
     selectedBenefits: string[];
     unassignedBudget: number;
+    allocWater: number;
+    allocWaste: number;
+    allocAir: number;
   }) => void;
   onScenarioStateChange?: (s: { selectedSize: MineSize; selectedCapacity: Capacity }) => void;
   showSubmitButton?: boolean;
@@ -42,8 +45,19 @@ export const MitigationBudgetControls: React.FC<MitigationBudgetControlsProps> =
       totalBudget: b.totalBudget,
       selectedBenefits,
       unassignedBudget: b.unassignedBudget,
+      allocWater: b.allocWater,
+      allocWaste: b.allocWaste,
+      allocAir: b.allocAir,
     });
-  }, [b.totalBudget, b.unassignedBudget, selectedBenefits, onMetricsChange]);
+  }, [
+    b.totalBudget,
+    b.unassignedBudget,
+    b.allocWater,
+    b.allocWaste,
+    b.allocAir,
+    selectedBenefits,
+    onMetricsChange,
+  ]);
 
   useEffect(() => {
     onScenarioStateChange?.({
