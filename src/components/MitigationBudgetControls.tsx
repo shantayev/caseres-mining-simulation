@@ -13,11 +13,13 @@ import {
 } from '../data/mitigationConstants';
 import { useMitigationBudgetV2 } from '../hooks/useMitigationBudgetV2';
 import type { MineSize, Capacity } from '../data/mitigationConstants';
+import type { PlacedIndustrialSymbol } from './map/mapSymbols';
 
 export interface MitigationBudgetControlsProps {
   selectedBenefits: string[];
   onToggleBenefit: (id: string) => void;
   onScenarioUnlock?: () => void;
+  placedIndustrial?: PlacedIndustrialSymbol[];
   onMetricsChange?: (m: {
     totalBudget: number;
     selectedBenefits: string[];
@@ -37,8 +39,14 @@ export const MitigationBudgetControls: React.FC<MitigationBudgetControlsProps> =
   onMetricsChange,
   onScenarioStateChange,
   showSubmitButton = true,
+  placedIndustrial = [],
 }) => {
-  const b = useMitigationBudgetV2({ selectedBenefits, onToggleBenefit, onScenarioUnlock });
+  const b = useMitigationBudgetV2({
+    selectedBenefits,
+    onToggleBenefit,
+    onScenarioUnlock,
+    placedIndustrial,
+  });
 
   useEffect(() => {
     onMetricsChange?.({

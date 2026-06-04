@@ -1,11 +1,10 @@
 import React, { useState, useCallback } from 'react';
 import { MitigationBudgetControls } from './MitigationBudgetControls';
-import { MINE_SIZES, CAPACITIES, type MineSize, type Capacity } from '../data/mitigationConstants';
-
+import { DraggableRegionalMap } from './map/DraggableRegionalMap';
+import type { PlacedIndustrialSymbol } from './map/mapSymbols';
 export const DeveloperView: React.FC = () => {
   const [selectedBenefits, setSelectedBenefits] = useState<string[]>([]);
-  const [selectedSize, setSelectedSize] = useState<MineSize>(MINE_SIZES[0]);
-  const [selectedCapacity, setSelectedCapacity] = useState<Capacity>(CAPACITIES[0]);
+  const [placedIndustrial, setPlacedIndustrial] = useState<PlacedIndustrialSymbol[]>([]);
 
   const toggleBenefit = useCallback((id: string) => {
     setSelectedBenefits(prev =>
@@ -17,35 +16,30 @@ export const DeveloperView: React.FC = () => {
     setSelectedBenefits([]);
   }, []);
 
-  const handleScenarioStateChange = useCallback(
-    (s: { selectedSize: MineSize; selectedCapacity: Capacity }) => {
-      setSelectedSize(s.selectedSize);
-      setSelectedCapacity(s.selectedCapacity);
-    },
-    []
-  );
-
   return (
-    <div className="flex-1 flex gap-4 min-h-0 overflow-hidden relative font-sans text-gray-900 h-full">
-      <div className="flex-[2] bg-white rounded-xl shadow-lg border border-gray-200 p-4 flex flex-col gap-4 overflow-y-auto h-full">
-        <MitigationBudgetControls
-          selectedBenefits={selectedBenefits}
-          onToggleBenefit={toggleBenefit}
-          onScenarioUnlock={handleScenarioUnlock}
-          onScenarioStateChange={handleScenarioStateChange}
-        />
-      </div>
+    <div className="flex-1 flex flex-col gap-3 min-h-0 overflow-hidden relative font-sans text-gray-900 h-full">
+      <p className="text-[11px] text-gray-600 px-1 shrink-0">
+        Technical teams: configure mitigation budget, then drag industrial facilities onto the regional
+        map. Export results when finished.
+      </p>
 
-      <div className="flex-[3] bg-gray-100 rounded-xl border border-gray-300 overflow-hidden relative flex items-center justify-center">
-        <img
-          src={selectedSize.image}
-          alt={`Mine Size ${selectedSize.label}`}
-          className="w-full h-full object-contain p-4"
-        />
-        <div className="absolute top-4 right-4 bg-white/90 p-2 rounded shadow text-xs">
-          <div className="font-bold mb-1">Visualizing:</div>
-          <div>Size: {selectedSize.label}</div>
-          <div>Capacity: {selectedCapacity.label}</div>
+      <div className="flex-1 flex flex-col lg:flex-row gap-3 min-h-0 overflow-hidden">
+        <div className="lg:w-[min(420px,38%)] shrink-0 bg-white rounded-xl shadow-lg border border-gray-200 p-4 flex flex-col gap-4 overflow-y-auto max-h-full">
+          <MitigationBudgetControls
+            selectedBenefits={selectedBenefits}
+            onToggleBenefit={toggleBenefit}
+            onScenarioUnlock={handleScenarioUnlock}
+            placedIndustrial={placedIndustrial}
+          />
+        </div>
+
+        <div className="flex-1 min-h-[360px] min-w-0">
+          <DraggableRegionalMap
+            mode="technical"
+            selectedNoBuildIds={[]}
+            placedIndustrial={placedIndustrial}
+            onPlacedIndustrialChange={setPlacedIndustrial}
+          />
         </div>
       </div>
     </div>
