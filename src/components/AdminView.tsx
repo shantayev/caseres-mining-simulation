@@ -9,6 +9,7 @@ import {
   parseIndustrialPlacements,
   type IndustrialPlacementRecord,
 } from '../data/mapOverlap';
+import { getCsvField, parseCsvLine } from '../utils/csvParse';
 
 interface CommunityResult {
   winnerId: string;
@@ -62,44 +63,46 @@ function parseNoBuildIds(raw: string): SelectableNoBuildId[] {
 }
 
 const parseCSV = (text: string, type: 'community' | 'developer'): CommunityResult | DeveloperResult | null => {
-  const lines = text.trim().split('\n');
+  const lines = text.trim().split(/\r?\n/).filter(Boolean);
   if (lines.length < 2) return null;
-  const header = lines[0].split(',').map(h => h.trim());
-  const values = lines[1].split(',');
+  const header = parseCsvLine(lines[0]);
+  const values = parseCsvLine(lines[1]);
 
   if (type === 'community') {
-    const benefitIds = values[2] ? values[2].split('|').map(id => id.trim()) : [];
-    const consensusRaw = values[3] ?? values[header.indexOf('consensusAreaId')] ?? 'none';
+    const winnerId = getCsvField(header, values, 'winnerId') || values[0] || 'none';
+    const benefitsCount = Number(
+      getCsvField(header, values, 'benefitsCount') || values[1] || '0'
+    );
+    const benefitIdsRaw = getCsvField(header, values, 'benefitIds') || values[2] || '';
+    const benefitIds = benefitIdsRaw ? benefitIdsRaw.split('|').map(id => id.trim()) : [];
+    const consensusRaw =
+      getCsvField(header, values, 'consensusAreaId') || values[3] || 'none';
     return {
-      winnerId: values[0],
+      winnerId,
       consensusAreaIds: parseNoBuildIds(consensusRaw),
-      benefitsCount: Number(values[1]),
+      benefitsCount,
       selectedBenefitIds: benefitIds,
     } as CommunityResult;
   }
 
-  const hasIndustrialCol = header.includes('industrial_placements');
-  const benefitIdx = header.indexOf('selected_benefits');
-  const industrialIdx = header.indexOf('industrial_placements');
-  const waterIdx = header.indexOf('final_water_m3');
-  const wasteIdx = header.indexOf('final_waste_ton');
+  const benefitIdsRaw = getCsvField(header, values, 'selected_benefits');
+  const benefitIds = benefitIdsRaw
+    ? benefitIdsRaw.split('|').map(id => id.trim())
+    : [];
 
-  const benefitIds =
-    benefitIdx >= 0 && values[benefitIdx]
-      ? values[benefitIdx].split('|').map(id => id.trim())
-      : values[8]
-        ? values[8].split('|').map(id => id.trim())
-        : [];
+  const industrialRaw = getCsvField(header, values, 'industrial_placements', {
+    mergeExtraCommas: true,
+  });
 
-  const industrialRaw =
-    hasIndustrialCol && industrialIdx >= 0 ? values[industrialIdx] ?? '' : '';
+  const waterRaw = getCsvField(header, values, 'final_water_m3');
+  const wasteRaw = getCsvField(header, values, 'final_waste_ton');
 
   return {
-    size_km2: Number(values[0]),
-    capacity_mton: Number(values[1]),
-    total_budget: Number(values[2]),
-    final_water: Number(waterIdx >= 0 ? values[waterIdx] : values[6]),
-    final_waste: Number(wasteIdx >= 0 ? values[wasteIdx] : values[7]),
+    size_km2: Number(getCsvField(header, values, 'size_km2') || values[0]),
+    capacity_mton: Number(getCsvField(header, values, 'capacity_mton') || values[1]),
+    total_budget: Number(getCsvField(header, values, 'total_budget') || values[2]),
+    final_water: Number(waterRaw || values[6]),
+    final_waste: Number(wasteRaw || values[7]),
     selectedBenefitIds: benefitIds,
     industrialPlacements: parseIndustrialPlacements(industrialRaw),
   } as DeveloperResult;
