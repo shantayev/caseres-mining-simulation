@@ -1,19 +1,14 @@
 import React, { useState, useMemo } from 'react';
 import clsx from 'clsx';
 import { MapPin, X, Download, Info } from 'lucide-react';
-import { RegionalMapPreview } from './map/RegionalMapPreview';
-import {
-  NO_BUILD_AREAS,
-  canToggleNoBuildZone,
-  type NoBuildAreaId,
-  type SelectableNoBuildId,
-} from '../data/noBuildAreas';
 
 // --- Types & Constants ---
 
 type GroupId = 'tourism' | 'agriculture' | 'academics' | 'industries' | 'environmental';
 type MineSizeId = '8km' | '4km' | '2km' | '1km' | '0.5km' | 'oppose';
 type BenefitId = 'canoe' | 'irrigation' | 'research' | 'energy' | 'park';
+type NoBuildAreaId = 'none' | 'mountain' | 'oldtown' | 'aquifer' | 'campus';
+type SelectableNoBuildId = Exclude<NoBuildAreaId, 'none'>;
 
 interface Group {
   id: GroupId;
@@ -68,6 +63,34 @@ const BENEFITS: { id: BenefitId; label: string; image: string; description: stri
     label: 'Park/Forestry Expansion',
     image: '/parks.png',
     description: "Designated land buffers and post-operation areas can be converted into protected parks, reforestation zones, or biodiversity corridors. Environmental organizations gain long-term stewardship roles, enabling conservation, habitat restoration, and educational outreach while improving regional ecological outcomes."
+  },
+];
+
+const NO_BUILD_AREAS: {
+  id: NoBuildAreaId;
+  label: string;
+  description: string;
+}[] = [
+  { id: 'none', label: 'No restriction', description: 'No area is excluded from mining.' },
+  {
+    id: 'mountain',
+    label: 'Mountain Trails',
+    description: 'Exclude the mountain trails area from mining.',
+  },
+  {
+    id: 'oldtown',
+    label: 'Old Town',
+    description: 'Exclude the Old Town area from mining.',
+  },
+  {
+    id: 'aquifer',
+    label: 'Aquifer Systems',
+    description: 'Exclude the aquifer systems area from mining.',
+  },
+  {
+    id: 'campus',
+    label: 'University Campus',
+    description: 'Exclude the university campus area from mining.',
   },
 ];
 
@@ -198,16 +221,8 @@ export const CommunityView: React.FC = () => {
       setSelectedNoBuildIds([]);
       return;
     }
-    const adding = !selectedNoBuildIds.includes(id as SelectableNoBuildId);
-    const check = canToggleNoBuildZone(selectedNoBuildIds, id as SelectableNoBuildId, adding);
-    if (!check.ok) {
-      alert(check.message);
-      return;
-    }
     setSelectedNoBuildIds(prev =>
-      prev.includes(id as SelectableNoBuildId)
-        ? prev.filter(x => x !== id)
-        : [...prev, id as SelectableNoBuildId]
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
     );
   };
 
@@ -248,14 +263,14 @@ export const CommunityView: React.FC = () => {
                         ? selectedNoBuildIds.length === 0
                           ? 'bg-gray-900 text-white border-gray-900'
                           : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
-                        : selectedNoBuildIds.includes(area.id as SelectableNoBuildId)
-                          ? 'bg-red-600 text-white border-red-700'
-                          : 'bg-white text-gray-700 border-gray-200 hover:bg-red-50'
+                        : selectedNoBuildIds.includes(area.id)
+                          ? 'bg-gray-900 text-white border-gray-900'
+                          : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
                     )}
                     aria-pressed={
                       area.id === 'none'
                         ? selectedNoBuildIds.length === 0
-                        : selectedNoBuildIds.includes(area.id as SelectableNoBuildId)
+                        : selectedNoBuildIds.includes(area.id)
                     }
                   >
                     {area.label}
@@ -442,7 +457,56 @@ export const CommunityView: React.FC = () => {
                 )}
               </div>
 
-              <RegionalMapPreview selectedNoBuildIds={selectedNoBuildIds} />
+              <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                <div className="px-2 py-1 bg-gray-50 border-b text-[10px] font-bold text-gray-700 flex items-center justify-between">
+                  <span>No-build map</span>
+                  <span className="text-gray-500">
+                    Selected:{' '}
+                    {selectedNoBuildIds.length === 0
+                      ? 'None'
+                      : selectedNoBuildIds
+                          .map(id => NO_BUILD_AREAS.find(a => a.id === id)?.label)
+                          .filter(Boolean)
+                          .join(', ')}
+                  </span>
+                </div>
+                <div className="relative w-full aspect-[4/3] bg-gray-100">
+                  <img
+                    src="/regional-map.png"
+                    alt="Regional map"
+                    className="absolute inset-0 w-full h-full object-cover"
+                  />
+
+                  {/* Soft highlights aligned to labeled regions on regional-map.png */}
+                  <div
+                    className={clsx(
+                      'absolute top-[6%] left-[18%] w-[70%] h-[30%] rounded-full bg-red-500 blur-2xl transition-opacity duration-300',
+                      selectedNoBuildIds.includes('mountain') ? 'opacity-30' : 'opacity-0'
+                    )}
+                  />
+                  <div
+                    className={clsx(
+                      'absolute top-[30%] left-[0%] w-[28%] h-[40%] rounded-full bg-red-500 blur-2xl transition-opacity duration-300',
+                      selectedNoBuildIds.includes('oldtown') ? 'opacity-30' : 'opacity-0'
+                    )}
+                  />
+                  <div
+                    className={clsx(
+                      'absolute bottom-[0%] left-[0%] w-[55%] h-[42%] rounded-full bg-red-500 blur-2xl transition-opacity duration-300',
+                      selectedNoBuildIds.includes('aquifer') ? 'opacity-30' : 'opacity-0'
+                    )}
+                  />
+                  <div
+                    className={clsx(
+                      'absolute bottom-[10%] right-[0%] w-[38%] h-[38%] rounded-full bg-red-500 blur-2xl transition-opacity duration-300',
+                      selectedNoBuildIds.includes('campus') ? 'opacity-30' : 'opacity-0'
+                    )}
+                  />
+                </div>
+                <div className="px-2 py-1 text-[10px] text-gray-500">
+                  Shaded zones show all selected “do not build here” constraints.
+                </div>
+              </div>
 
               <div className="text-[10px] text-gray-400 text-center italic">
                 Hover over a selected benefit to see details.

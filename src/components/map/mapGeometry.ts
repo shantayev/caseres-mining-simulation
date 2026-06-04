@@ -43,6 +43,23 @@ export function clientToMapPercent(
   };
 }
 
+/** Like clientToMapPercent but clamps to the visible map image (for drops on letterbox area). */
+export function clientToMapPercentClamped(
+  clientX: number,
+  clientY: number,
+  containerEl: HTMLElement,
+  imageRect: ContainRect
+): { xPct: number; yPct: number } | null {
+  if (imageRect.width <= 0 || imageRect.height <= 0) return null;
+  const box = containerEl.getBoundingClientRect();
+  const x = Math.max(0, Math.min(imageRect.width, clientX - box.left - imageRect.left));
+  const y = Math.max(0, Math.min(imageRect.height, clientY - box.top - imageRect.top));
+  return {
+    xPct: (x / imageRect.width) * 100,
+    yPct: (y / imageRect.height) * 100,
+  };
+}
+
 export function clampPct(v: number) {
   return Math.max(0, Math.min(100, v));
 }

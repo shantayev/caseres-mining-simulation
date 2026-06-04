@@ -18,7 +18,7 @@ import {
   type PlacedIndustrialSymbol,
 } from './mapSymbols';
 import {
-  clientToMapPercent,
+  clientToMapPercentClamped,
   clampPct,
   getObjectContainRect,
   type ContainRect,
@@ -111,17 +111,31 @@ export const DraggableRegionalMap: React.FC<DraggableRegionalMapProps> = ({
   );
 
   useEffect(() => {
-    setPlacedIndustrial(prev => prev.filter(s => canPlaceAt(s.xPct, s.yPct)));
-  }, [selectedNoBuildIds, canPlaceAt, setPlacedIndustrial]);
+    setPlacedIndustrial(prev => {
+      const next = prev.filter(s => canPlaceAt(s.xPct, s.yPct));
+      return next.length === prev.length ? prev : next;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedNoBuildIds]);
+
+  const resolveDropPercent = useCallback(
+    (clientX: number, clientY: number) => {
+      const container = containerRef.current;
+      if (!container || imageRect.width <= 0 || imageRect.height <= 0) return null;
+      return clientToMapPercentClamped(clientX, clientY, container, imageRect);
+    },
+    [imageRect]
+  );
 
   const addIndustrialAtClient = useCallback(
     (type: IndustrialSymbolType, clientX: number, clientY: number) => {
-      const container = containerRef.current;
-      if (!container) return;
-      const pct = clientToMapPercent(clientX, clientY, container, imageRect);
-      if (!pct || !canPlaceAt(pct.xPct, pct.yPct)) {
+      const pct = resolveDropPercent(clientX, clientY);
+      if (!pct) return;
+      if (!canPlaceAt(pct.xPct, pct.yPct)) {
         if (isTechnical) {
-          alert('Cannot place facility in a no-go zone. Adjust community constraints or choose another site.');
+          alert(
+            'Cannot place facility in a no-go zone. Adjust community constraints or choose another site.'
+          );
         }
         return;
       }
@@ -135,14 +149,16 @@ export const DraggableRegionalMap: React.FC<DraggableRegionalMapProps> = ({
         },
       ]);
     },
-    [imageRect, canPlaceAt, setPlacedIndustrial, isTechnical]
+    [resolveDropPercent, canPlaceAt, setPlacedIndustrial, isTechnical]
   );
 
   const handleMapDragOver = (e: React.DragEvent) => {
     const types = e.dataTransfer.types;
     if (
       types.includes(MAP_INDUSTRIAL_DRAG_TYPE) ||
-      (!isTechnical && types.includes(MAP_BENEFIT_DRAG_TYPE))
+      types.includes('text/plain') ||
+      (!isTechnical &&
+        (types.includes(MAP_BENEFIT_DRAG_TYPE) || types.includes('text/plain')))
     ) {
       e.preventDefault();
       e.dataTransfer.dropEffect = 'copy';
@@ -151,19 +167,18 @@ export const DraggableRegionalMap: React.FC<DraggableRegionalMapProps> = ({
 
   const handleMapDrop = (e: React.DragEvent) => {
     e.preventDefault();
-    const industrialType = e.dataTransfer.getData(
-      MAP_INDUSTRIAL_DRAG_TYPE
-    ) as IndustrialSymbolType;
+    e.stopPropagation();
+    const industrialType = (e.dataTransfer.getData(MAP_INDUSTRIAL_DRAG_TYPE) ||
+      e.dataTransfer.getData('text/plain')) as IndustrialSymbolType;
     if (industrialType && INDUSTRIAL_SYMBOLS.some(s => s.type === industrialType)) {
       addIndustrialAtClient(industrialType, e.clientX, e.clientY);
       return;
     }
     if (!isTechnical && onBenefitPlace) {
-      const benefitId = e.dataTransfer.getData(MAP_BENEFIT_DRAG_TYPE) as CommunityBenefitId;
+      const benefitId = (e.dataTransfer.getData(MAP_BENEFIT_DRAG_TYPE) ||
+        e.dataTransfer.getData('text/plain')) as CommunityBenefitId;
       if (benefitId && COMMUNITY_BENEFITS.some(b => b.id === benefitId)) {
-        const container = containerRef.current;
-        if (!container) return;
-        const pct = clientToMapPercent(e.clientX, e.clientY, container, imageRect);
+        const pct = resolveDropPercent(e.clientX, e.clientY);
         if (!pct) return;
         onBenefitPlace(benefitId, clampPct(pct.xPct), clampPct(pct.yPct));
       }
@@ -185,7 +200,7 @@ export const DraggableRegionalMap: React.FC<DraggableRegionalMapProps> = ({
 
   const handleMarkerPointerMove = (e: React.PointerEvent) => {
     if (!draggingId || !draggingCategory || !containerRef.current) return;
-    const pct = clientToMapPercent(e.clientX, e.clientY, containerRef.current, imageRect);
+    const pct = resolveDropPercent(e.clientX, e.clientY);
     if (!pct) return;
     const x = clampPct(pct.xPct);
     const y = clampPct(pct.yPct);
@@ -252,6 +267,7 @@ export const DraggableRegionalMap: React.FC<DraggableRegionalMapProps> = ({
               draggable
               onDragStart={e => {
                 e.dataTransfer.setData(MAP_INDUSTRIAL_DRAG_TYPE, type);
+                e.dataTransfer.setData('text/plain', type);
                 e.dataTransfer.effectAllowed = 'copy';
               }}
               className={clsx(
@@ -286,6 +302,7 @@ export const DraggableRegionalMap: React.FC<DraggableRegionalMapProps> = ({
                       return;
                     }
                     e.dataTransfer.setData(MAP_BENEFIT_DRAG_TYPE, id);
+                    e.dataTransfer.setData('text/plain', id);
                     e.dataTransfer.effectAllowed = 'copy';
                   }}
                   className={clsx(
@@ -311,6 +328,8 @@ export const DraggableRegionalMap: React.FC<DraggableRegionalMapProps> = ({
           <div
             ref={containerRef}
             className="relative w-full max-w-full aspect-[4/3] max-h-[min(68vh,620px)] mx-auto"
+            onDragOver={handleMapDragOver}
+            onDrop={handleMapDrop}
           >
             <img
               src="/regional-map.png"
@@ -327,17 +346,15 @@ export const DraggableRegionalMap: React.FC<DraggableRegionalMapProps> = ({
 
             <NoBuildOverlays selectedNoBuildIds={selectedNoBuildIds} />
 
-            {containerSize.w > 0 && (
+            {imageRect.width > 0 && imageRect.height > 0 && (
               <div
-                className="absolute z-10"
+                className="absolute z-10 pointer-events-none"
                 style={{
                   left: imageRect.left,
                   top: imageRect.top,
                   width: imageRect.width,
                   height: imageRect.height,
                 }}
-                onDragOver={handleMapDragOver}
-                onDrop={handleMapDrop}
               >
                 {placedIndustrial.map(sym => {
                   const def = getIndustrialSymbolDef(sym.type);
@@ -349,7 +366,7 @@ export const DraggableRegionalMap: React.FC<DraggableRegionalMapProps> = ({
                       role="button"
                       tabIndex={0}
                       className={clsx(
-                        'absolute flex items-center justify-center w-8 h-8 rounded-full border-2 shadow-md cursor-grab touch-none',
+                        'absolute flex items-center justify-center w-8 h-8 rounded-full border-2 shadow-md cursor-grab touch-none pointer-events-auto',
                         def.chipClass,
                         isDragging && 'ring-2 ring-yellow-400 scale-110 z-20'
                       )}
