@@ -46,6 +46,31 @@ function sameBenefitSet(a: string[], b: string[]) {
   return sa.every((v, i) => v === sb[i]);
 }
 
+function percentileValue(sortedAsc: number[], p: number): number {
+  if (sortedAsc.length === 0) return 0;
+  if (sortedAsc.length === 1) return sortedAsc[0];
+  const idx = (p / 100) * (sortedAsc.length - 1);
+  const lo = Math.floor(idx);
+  const hi = Math.ceil(idx);
+  if (lo === hi) return sortedAsc[lo];
+  return sortedAsc[lo] + (sortedAsc[hi] - sortedAsc[lo]) * (idx - lo);
+}
+
+/** Red = bottom 25%, orange = middle 50%, green = top 25% by utility. */
+function utilityPercentileColor(
+  utility: number,
+  sortedUtilities: number[],
+  benefitIds: string[]
+): string {
+  if (benefitIds.length === 0) return '#9ca3af';
+  if (sortedUtilities.length < 2) return '#8884d8';
+  const p25 = percentileValue(sortedUtilities, 25);
+  const p75 = percentileValue(sortedUtilities, 75);
+  if (utility < p25) return '#dc2626';
+  if (utility <= p75) return '#f97316';
+  return '#22c55e';
+}
+
 /** All non-empty subsets for scatter (2^5 - 1 = 31) plus optional empty point. */
 function generateBundleChartRows(weights: LeverWeights, includeEmpty: boolean) {
   const rows: {
@@ -142,9 +167,14 @@ export const BenefitUtilityCostChart: React.FC<BenefitUtilityCostChartProps> = (
 
   const chartData = useMemo(() => {
     const rows = generateBundleChartRows(weights, true);
+    const utilitiesForRank = rows
+      .filter(r => r.benefitIds.length > 0)
+      .map(r => r.utility)
+      .sort((a, b) => a - b);
     return rows.map(item => ({
       ...item,
       isMatch: choice ? sameBenefitSet(item.benefitIds, highlightBenefitIds) : false,
+      fillColor: utilityPercentileColor(item.utility, utilitiesForRank, item.benefitIds),
     }));
   }, [weights, choice, highlightBenefitIds]);
 
@@ -162,6 +192,10 @@ export const BenefitUtilityCostChart: React.FC<BenefitUtilityCostChartProps> = (
           {weights.waste.toFixed(2)}, air ×{weights.air.toFixed(2)}
         </p>
       )}
+      <p className="text-[9px] text-gray-500 text-center mb-1 shrink-0">
+        Dot color: red = bottom 25% utility, orange = middle 50%, green = top 25% (black ring =
+        current selection)
+      </p>
       <ResponsiveContainer width="100%" height="85%">
         <ScatterChart margin={{ top: 12, right: 12, bottom: 12, left: 12 }}>
           <CartesianGrid strokeDasharray="3 3" />
@@ -175,7 +209,7 @@ export const BenefitUtilityCostChart: React.FC<BenefitUtilityCostChartProps> = (
           >
             <Label value="Community benefit cost ($)" offset={-8} position="insideBottom" />
           </XAxis>
-          <YAxis type="number" dataKey="utility" name="Utility" domain={[0, 1]}>
+          <YAxis type="number" dataKey="utility" name="Utility" domain={[0, 'auto']}>
             <Label value="Weighted utility" angle={-90} position="insideLeft" />
           </YAxis>
           <Tooltip
@@ -198,13 +232,13 @@ export const BenefitUtilityCostChart: React.FC<BenefitUtilityCostChartProps> = (
             }}
           />
           <Legend />
-          <Scatter name="Benefit bundles" data={chartData} fill="#8884d8" fillOpacity={0.6}>
+          <Scatter name="Benefit bundles" data={chartData} fill="#8884d8" fillOpacity={0.75}>
             {chartData.map((entry, index) => (
               <Cell
                 key={`cell-${index}`}
-                fill={entry.isMatch ? '#ff0000' : '#8884d8'}
-                stroke={entry.isMatch ? '#ff0000' : 'none'}
-                strokeWidth={2}
+                fill={entry.fillColor}
+                stroke={entry.isMatch ? '#111827' : 'none'}
+                strokeWidth={entry.isMatch ? 3 : 0}
               />
             ))}
           </Scatter>

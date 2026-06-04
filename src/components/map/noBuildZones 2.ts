@@ -1,6 +1,6 @@
-import type { SelectableNoBuildId } from '../../data/noBuildAreas';
+import type { SelectableNoBuildId } from '../joint/JointNoBuildSection';
 
-/** Zone bounds as % of map image box (aligned to regional-map.png). */
+/** Zone bounds as % of map image box (matches red overlay divs). */
 export interface NoBuildZoneRect {
   id: SelectableNoBuildId;
   top: number;
@@ -10,7 +10,6 @@ export interface NoBuildZoneRect {
 }
 
 export const NO_BUILD_ZONE_RECTS: NoBuildZoneRect[] = [
-  { id: 'ore_body', top: 4, left: 28, width: 44, height: 28 },
   { id: 'mountain', top: 6, left: 18, width: 70, height: 30 },
   { id: 'oldtown', top: 30, left: 0, width: 28, height: 40 },
   { id: 'aquifer', top: 58, left: 0, width: 55, height: 42 },
@@ -39,14 +38,4 @@ export function isPointInNoBuildZone(
   return NO_BUILD_ZONE_RECTS.some(
     zone => selectedIds.includes(zone.id) && isPointInZoneRect(xPct, yPct, zone)
   );
-}
-
-export function getNoBuildZonesAtPoint(
-  xPct: number,
-  yPct: number,
-  selectedIds: SelectableNoBuildId[]
-): SelectableNoBuildId[] {
-  return NO_BUILD_ZONE_RECTS.filter(
-    zone => selectedIds.includes(zone.id) && isPointInZoneRect(xPct, yPct, zone)
-  ).map(z => z.id);
 }
