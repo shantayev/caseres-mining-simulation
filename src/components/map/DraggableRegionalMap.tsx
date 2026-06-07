@@ -44,6 +44,9 @@ export interface DraggableRegionalMapProps {
   unassignedBudget?: number;
   onBenefitPlace?: (id: CommunityBenefitId, xPct: number, yPct: number) => void;
   onBenefitRemove?: (id: CommunityBenefitId) => void;
+  /** Smaller map footprint (developer dashboard, matches community preview size). */
+  compact?: boolean;
+  className?: string;
 }
 
 let symbolIdCounter = 0;
@@ -62,6 +65,8 @@ export const DraggableRegionalMap: React.FC<DraggableRegionalMapProps> = ({
   unassignedBudget = 0,
   onBenefitPlace,
   onBenefitRemove,
+  compact = false,
+  className,
 }) => {
   const isTechnical = mode === 'technical';
   const [internalIndustrial, setInternalIndustrial] = useState<PlacedIndustrialSymbol[]>([]);
@@ -115,6 +120,7 @@ export const DraggableRegionalMap: React.FC<DraggableRegionalMapProps> = ({
       const next = prev.filter(s => canPlaceAt(s.xPct, s.yPct));
       return next.length === prev.length ? prev : next;
     });
+    // Only re-filter when no-go selection changes (not on every placement update).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedNoBuildIds]);
 
@@ -244,7 +250,13 @@ export const DraggableRegionalMap: React.FC<DraggableRegionalMapProps> = ({
   const placedBenefitCount = Object.keys(benefitPlacements).length;
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white overflow-hidden flex flex-col min-h-[320px] lg:min-h-[min(72vh,640px)] h-full">
+    <div
+      className={clsx(
+        'rounded-xl border border-gray-200 bg-white overflow-hidden flex flex-col',
+        compact ? 'shrink-0' : 'min-h-[320px] lg:min-h-[min(72vh,640px)] h-full',
+        className
+      )}
+    >
       <div className="px-2 py-1.5 bg-gray-50 border-b text-[10px] font-bold text-gray-700 flex items-center justify-between shrink-0">
         <span>
           {isTechnical
@@ -283,7 +295,7 @@ export const DraggableRegionalMap: React.FC<DraggableRegionalMapProps> = ({
         </div>
       </div>
 
-      <div className="flex flex-row flex-1 min-h-0">
+      <div className={clsx('flex flex-row', compact ? 'shrink-0' : 'flex-1 min-h-0')}>
         {!isTechnical && (
           <div className="w-[min(140px,28%)] shrink-0 border-r bg-white px-1.5 py-2 flex flex-col gap-1.5 overflow-y-auto">
             <span className="text-[9px] text-gray-500 font-semibold leading-tight">
@@ -324,10 +336,18 @@ export const DraggableRegionalMap: React.FC<DraggableRegionalMapProps> = ({
           </div>
         )}
 
-        <div className="flex-1 min-h-[240px] bg-gray-100 flex items-center justify-center p-2 min-w-0">
+        <div
+          className={clsx(
+            'bg-gray-100 flex items-center justify-center p-2 min-w-0 w-full',
+            compact ? 'shrink-0' : 'flex-1'
+          )}
+        >
           <div
             ref={containerRef}
-            className="relative w-full max-w-full aspect-[4/3] max-h-[min(68vh,620px)] mx-auto"
+            className={clsx(
+              'relative w-full aspect-[4/3] mx-auto',
+              compact ? 'max-w-full' : 'max-w-full max-h-[min(68vh,620px)]'
+            )}
             onDragOver={handleMapDragOver}
             onDrop={handleMapDrop}
           >

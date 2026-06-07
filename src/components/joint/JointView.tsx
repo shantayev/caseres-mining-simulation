@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   JointNoBuildToolbar,
   type NoBuildAreaId,
@@ -9,6 +9,11 @@ import type { BenefitPlacement } from '../map/DraggableRegionalMap';
 import { BenefitUtilityCostChart, type LeverAllocations } from '../BenefitUtilityCostChart';
 import { JointDeveloperPanel } from './JointDeveloperPanel';
 import { getCommunityBenefit, type CommunityBenefitId } from '../../data/communityBenefits';
+import {
+  getMaxNoBuildZonesForMineSizeKm2,
+  canToggleNoBuildZone,
+} from '../../data/noBuildAreas';
+import type { MineSize } from '../../data/mitigationConstants';
 
 /**
  * Joint negotiation: no-build toolbar, utility chart (left) + draggable regional map (right), developer controls below.
@@ -23,6 +28,20 @@ export const JointView: React.FC = () => {
   const [benefitPlacements, setBenefitPlacements] = useState<
     Partial<Record<CommunityBenefitId, BenefitPlacement>>
   >({});
+  const [selectedSize, setSelectedSize] = useState<MineSize | null>(null);
+
+  const maxNoBuildZones = selectedSize
+    ? getMaxNoBuildZonesForMineSizeKm2(selectedSize.value)
+    : 4;
+
+  const prevSizeRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (selectedSize === null) return;
+    if (prevSizeRef.current !== null && prevSizeRef.current !== selectedSize.value) {
+      setSelectedNoBuildIds([]);
+    }
+    prevSizeRef.current = selectedSize.value;
+  }, [selectedSize]);
 
   const handleMetricsChange = useCallback(
     (m: {
@@ -41,6 +60,13 @@ export const JointView: React.FC = () => {
         allocWaste: m.allocWaste,
         allocAir: m.allocAir,
       });
+    },
+    []
+  );
+
+  const handleScenarioStateChange = useCallback(
+    (s: { selectedSize: MineSize }) => {
+      setSelectedSize(s.selectedSize);
     },
     []
   );
@@ -99,17 +125,35 @@ export const JointView: React.FC = () => {
     setBenefitPlacements({});
   }, []);
 
-  const toggleNoBuildArea = useCallback((id: NoBuildAreaId) => {
-    if (id === 'none') {
-      setSelectedNoBuildIds([]);
-      return;
-    }
-    setSelectedNoBuildIds(prev =>
-      prev.includes(id as SelectableNoBuildId)
-        ? prev.filter(x => x !== id)
-        : [...prev, id as SelectableNoBuildId]
-    );
-  }, []);
+  const toggleNoBuildArea = useCallback(
+    (id: NoBuildAreaId) => {
+      if (id === 'none') {
+        setSelectedNoBuildIds([]);
+        return;
+      }
+      if (maxNoBuildZones <= 0) {
+        alert('This mine size does not allow no-go zones.');
+        return;
+      }
+      const adding = !selectedNoBuildIds.includes(id as SelectableNoBuildId);
+      const check = canToggleNoBuildZone(
+        selectedNoBuildIds,
+        id as SelectableNoBuildId,
+        adding,
+        maxNoBuildZones
+      );
+      if (!check.ok) {
+        alert(check.message);
+        return;
+      }
+      setSelectedNoBuildIds(prev =>
+        prev.includes(id as SelectableNoBuildId)
+          ? prev.filter(x => x !== id)
+          : [...prev, id as SelectableNoBuildId]
+      );
+    },
+    [selectedNoBuildIds, maxNoBuildZones]
+  );
 
   return (
     <div className="flex-1 flex flex-col gap-3 min-h-0 overflow-y-auto overflow-x-hidden text-gray-900">
@@ -119,7 +163,12 @@ export const JointView: React.FC = () => {
         the technical teams screen).
       </p>
 
-      <JointNoBuildToolbar selectedNoBuildIds={selectedNoBuildIds} onToggle={toggleNoBuildArea} />
+      <JointNoBuildToolbar
+        selectedNoBuildIds={selectedNoBuildIds}
+        onToggle={toggleNoBuildArea}
+        maxNoBuildZones={maxNoBuildZones}
+        mineSizeLabel={selectedSize?.label}
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 items-stretch flex-1 min-h-[360px]">
         <div className="flex flex-col min-h-[320px] lg:min-h-[min(72vh,640px)]">
@@ -149,6 +198,7 @@ export const JointView: React.FC = () => {
           onToggleBenefit={toggleBenefit}
           onScenarioUnlock={handleScenarioUnlock}
           onMetricsChange={handleMetricsChange}
+          onScenarioStateChange={handleScenarioStateChange}
         />
       </div>
     </div>

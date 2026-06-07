@@ -10,6 +10,8 @@ import {
 export interface NoBuildToolbarProps {
   selectedNoBuildIds: SelectableNoBuildId[];
   onToggle: (id: NoBuildAreaId) => void;
+  maxNoBuildZones: number;
+  mineSizeLabel?: string;
   className?: string;
   title?: string;
 }
@@ -17,6 +19,8 @@ export interface NoBuildToolbarProps {
 export const NoBuildToolbar: React.FC<NoBuildToolbarProps> = ({
   selectedNoBuildIds,
   onToggle,
+  maxNoBuildZones,
+  mineSizeLabel,
   className,
   title = 'Areas to avoid (community constraint)',
 }) => {
@@ -33,14 +37,28 @@ export const NoBuildToolbar: React.FC<NoBuildToolbarProps> = ({
       onToggle(id);
       return;
     }
+    if (maxNoBuildZones <= 0) {
+      alert(
+        'This mine size does not allow no-go zones. Only “No restriction” is available.'
+      );
+      return;
+    }
     const adding = !selectedNoBuildIds.includes(id as SelectableNoBuildId);
-    const check = canToggleNoBuildZone(selectedNoBuildIds, id as SelectableNoBuildId, adding);
+    const check = canToggleNoBuildZone(
+      selectedNoBuildIds,
+      id as SelectableNoBuildId,
+      adding,
+      maxNoBuildZones
+    );
     if (!check.ok) {
       alert(check.message);
       return;
     }
     onToggle(id);
   };
+
+  const zoneDisabled = (id: NoBuildAreaId) =>
+    id !== 'none' && maxNoBuildZones <= 0;
 
   return (
     <div className={clsx('rounded-xl border border-gray-200 bg-white p-3 shrink-0', className)}>
@@ -57,8 +75,11 @@ export const NoBuildToolbar: React.FC<NoBuildToolbarProps> = ({
               </span>
             )}
           </div>
-          <p className="text-[9px] text-amber-800 mt-1">
-            Ore body: at most one of Mountain Trails or Ore Body may be selected.
+          <p className="text-[10px] text-gray-600 mt-1 font-medium">
+            {mineSizeLabel ? `${mineSizeLabel}: ` : ''}
+            {maxNoBuildZones === 0
+              ? 'No no-go zones allowed'
+              : `${selectedNoBuildIds.length} of ${maxNoBuildZones} no-go zone(s) selected`}
           </p>
         </div>
         <div className="flex gap-1 flex-wrap">
@@ -66,16 +87,18 @@ export const NoBuildToolbar: React.FC<NoBuildToolbarProps> = ({
             <button
               key={area.id}
               type="button"
+              disabled={zoneDisabled(area.id)}
               onClick={() => handleToggle(area.id)}
               className={clsx(
                 'px-2 py-1 rounded-full text-[10px] font-bold border transition-colors',
+                zoneDisabled(area.id) && 'opacity-40 cursor-not-allowed',
                 area.id === 'none'
                   ? selectedNoBuildIds.length === 0
                     ? 'bg-gray-900 text-white border-gray-900'
                     : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
                   : selectedNoBuildIds.includes(area.id as SelectableNoBuildId)
-                    ? 'bg-red-600 text-white border-red-700'
-                    : 'bg-white text-gray-700 border-gray-300 hover:bg-red-50'
+                    ? 'bg-gray-900 text-white border-gray-900'
+                    : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
               )}
             >
               {area.label}

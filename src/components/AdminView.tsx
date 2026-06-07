@@ -5,6 +5,11 @@ import { BenefitUtilityCostChart } from './BenefitUtilityCostChart';
 import { AdminNegotiationMap } from './map/AdminNegotiationMap';
 import type { SelectableNoBuildId } from '../data/noBuildAreas';
 import {
+  getMaxNoBuildZonesForCommunityWinner,
+  getMaxNoBuildZonesForMineSizeKm2,
+  validateNoGoZoneFeasibility,
+} from '../data/noBuildAreas';
+import {
   findIndustrialNoBuildConflicts,
   parseIndustrialPlacements,
   type IndustrialPlacementRecord,
@@ -16,6 +21,8 @@ interface CommunityResult {
   consensusAreaIds: SelectableNoBuildId[];
   benefitsCount: number;
   selectedBenefitIds: string[];
+  noGoZoneCount: number;
+  maxNoGoZones: number | null;
 }
 
 interface DeveloperResult {
@@ -77,11 +84,21 @@ const parseCSV = (text: string, type: 'community' | 'developer'): CommunityResul
     const benefitIds = benefitIdsRaw ? benefitIdsRaw.split('|').map(id => id.trim()) : [];
     const consensusRaw =
       getCsvField(header, values, 'consensusAreaId') || values[3] || 'none';
+    const consensusAreaIds = parseNoBuildIds(consensusRaw);
+    const noGoFromCsv = getCsvField(header, values, 'noGoZoneCount');
+    const maxFromCsv = getCsvField(header, values, 'maxNoGoZones');
+    const noGoZoneCount = noGoFromCsv
+      ? Number(noGoFromCsv)
+      : consensusAreaIds.length;
+    const parsedMax = maxFromCsv ? Number(maxFromCsv) : NaN;
+
     return {
       winnerId,
-      consensusAreaIds: parseNoBuildIds(consensusRaw),
+      consensusAreaIds,
       benefitsCount,
       selectedBenefitIds: benefitIds,
+      noGoZoneCount,
+      maxNoGoZones: Number.isFinite(parsedMax) ? parsedMax : null,
     } as CommunityResult;
   }
 
@@ -152,6 +169,40 @@ export const AdminView: React.FC = () => {
       status = 'infeasible';
       messages.push(
         `CRITICAL: ${sitingConflicts.length} industrial facility placement(s) overlap community no-go zone(s). See map below.`
+      );
+    }
+
+    const zoneCount = communityData.consensusAreaIds.length;
+    const expectedMax = getMaxNoBuildZonesForCommunityWinner(communityData.winnerId);
+    const noGoCheck = validateNoGoZoneFeasibility(
+      communityData.winnerId,
+      zoneCount,
+      communityData.maxNoGoZones ?? undefined
+    );
+
+    if (communityData.noGoZoneCount !== zoneCount) {
+      status = 'infeasible';
+      messages.push(
+        `CRITICAL: CSV noGoZoneCount (${communityData.noGoZoneCount}) does not match selected zones (${zoneCount}).`
+      );
+    } else if (!noGoCheck.ok) {
+      status = 'infeasible';
+      messages.push(`CRITICAL: No-go feasibility — ${noGoCheck.message}`);
+    } else {
+      messages.push(
+        `No-go Check: PASS. ${zoneCount} zone(s) for ${SIZE_LABELS[communityData.winnerId] ?? communityData.winnerId} mine (max ${expectedMax} allowed).`
+      );
+    }
+
+    const devMaxNoGo = getMaxNoBuildZonesForMineSizeKm2(developerData.size_km2);
+    if (zoneCount > devMaxNoGo) {
+      status = 'infeasible';
+      messages.push(
+        `CRITICAL: Community selected ${zoneCount} no-go zone(s), but developer mine (${developerData.size_km2} km²) allows at most ${devMaxNoGo}.`
+      );
+    } else if (zoneCount > 0) {
+      messages.push(
+        `Cross-team no-go: ${zoneCount} community zone(s) fit within developer mine limit (${devMaxNoGo} max at ${developerData.size_km2} km²).`
       );
     }
 
@@ -250,7 +301,7 @@ export const AdminView: React.FC = () => {
         <AdminNegotiationMap
           noBuildZoneIds={communityData.consensusAreaIds}
           industrialPlacements={developerData.industrialPlacements}
-          className="max-w-3xl mx-auto w-full"
+          className="w-full"
         />
       )}
 
@@ -277,6 +328,12 @@ export const AdminView: React.FC = () => {
                     {communityData.consensusAreaIds.length === 0
                       ? 'None'
                       : communityData.consensusAreaIds.join(', ')}
+                  </span>
+                  <span className="font-semibold text-gray-600">No-go count:</span>
+                  <span>
+                    {communityData.noGoZoneCount} / max{' '}
+                    {communityData.maxNoGoZones ??
+                      getMaxNoBuildZonesForCommunityWinner(communityData.winnerId)}
                   </span>
                   <span className="font-semibold text-gray-600">Benefits:</span>
                   <span>{communityData.selectedBenefitIds.length} Selected</span>
