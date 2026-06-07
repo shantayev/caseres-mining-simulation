@@ -1,15 +1,13 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import clsx from 'clsx';
 import { MapPin, X, Download, Info } from 'lucide-react';
-import { RegionalMapPreview } from './map/RegionalMapPreview';
 import {
   NO_BUILD_AREAS,
   canToggleNoBuildZone,
+  getMaxNoBuildZonesForCommunityWinner,
   type NoBuildAreaId,
   type SelectableNoBuildId,
 } from '../data/noBuildAreas';
-
-// --- Types & Constants ---
 
 type GroupId = 'tourism' | 'agriculture' | 'academics' | 'industries' | 'environmental';
 type MineSizeId = '8km' | '4km' | '2km' | '1km' | '0.5km' | 'oppose';
@@ -139,7 +137,15 @@ export const CommunityView: React.FC = () => {
   const { winnerId, tallies } = useMemo(() => getWinner(votes), [votes]);
   const winner = winnerId ? MINE_SIZES.find(m => m.id === winnerId) : null;
   const benefitsUnlocked = winner ? winner.benefitsUnlocked : 0;
-  
+  const maxNoBuildZones = getMaxNoBuildZonesForCommunityWinner(winnerId);
+
+  const prevWinnerRef = useRef<MineSizeId | null>(null);
+  useEffect(() => {
+    if (prevWinnerRef.current !== null && prevWinnerRef.current !== winnerId) {
+      setSelectedNoBuildIds([]);
+    }
+    prevWinnerRef.current = winnerId;
+  }, [winnerId]);
   // Handlers
   const handleVoteChange = (gId: GroupId, mId: MineSizeId, val: number) => {
     setVotes(prev => ({
@@ -171,7 +177,8 @@ export const CommunityView: React.FC = () => {
     const benefitIds = selectedBenefitsList.map(item => item.benefitId).join('|');
     const consensusAreaIds =
       selectedNoBuildIds.length > 0 ? selectedNoBuildIds.join('|') : 'none';
-    const csvContent = `winnerId,benefitsCount,benefitIds,consensusAreaId\n${winnerId || 'none'},${selectedBenefitsList.length},${benefitIds},${consensusAreaIds}`;
+    const noGoCount = selectedNoBuildIds.length;
+    const csvContent = `winnerId,benefitsCount,benefitIds,consensusAreaId,noGoZoneCount,maxNoGoZones\n${winnerId || 'none'},${selectedBenefitsList.length},${benefitIds},${consensusAreaIds},${noGoCount},${maxNoBuildZones}`;
     
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -198,8 +205,17 @@ export const CommunityView: React.FC = () => {
       setSelectedNoBuildIds([]);
       return;
     }
+    if (maxNoBuildZones <= 0) {
+      alert('The winning mine size (8 km²) does not allow no-go zones.');
+      return;
+    }
     const adding = !selectedNoBuildIds.includes(id as SelectableNoBuildId);
-    const check = canToggleNoBuildZone(selectedNoBuildIds, id as SelectableNoBuildId, adding);
+    const check = canToggleNoBuildZone(
+      selectedNoBuildIds,
+      id as SelectableNoBuildId,
+      adding,
+      maxNoBuildZones
+    );
     if (!check.ok) {
       alert(check.message);
       return;
@@ -210,6 +226,8 @@ export const CommunityView: React.FC = () => {
         : [...prev, id as SelectableNoBuildId]
     );
   };
+
+  const noGoZoneDisabled = (id: NoBuildAreaId) => id !== 'none' && maxNoBuildZones <= 0;
 
   return (
     <div className="flex-1 flex gap-4 min-h-0 overflow-hidden relative">
@@ -227,6 +245,18 @@ export const CommunityView: React.FC = () => {
               <div>
                 <div className="text-xs font-bold text-gray-700">Areas to avoid (community constraint)</div>
                 <div className="text-[10px] text-gray-500 mt-0.5">
+                  {winner ? (
+                    <span className="text-gray-600 font-medium">
+                      Winning size {winner.label}:{' '}
+                      {maxNoBuildZones === 0
+                        ? 'no no-go zones allowed'
+                        : `up to ${maxNoBuildZones} no-go zone(s) — ${selectedNoBuildIds.length} selected`}
+                    </span>
+                  ) : (
+                    <span className="text-gray-400 italic">Vote to determine mine size and no-go limit</span>
+                  )}
+                </div>
+                <div className="text-[10px] text-gray-500 mt-0.5">
                   {selectedNoBuildIds.length === 0 ? (
                     noBuildSummaryText
                   ) : (
@@ -242,20 +272,22 @@ export const CommunityView: React.FC = () => {
                     key={area.id}
                     type="button"
                     onClick={() => toggleNoBuildArea(area.id)}
+                    disabled={noGoZoneDisabled(area.id)}
                     className={clsx(
                       'px-2 py-1 rounded-full text-[10px] font-bold border transition-colors',
+                      noGoZoneDisabled(area.id) && 'opacity-40 cursor-not-allowed',
                       area.id === 'none'
                         ? selectedNoBuildIds.length === 0
                           ? 'bg-gray-900 text-white border-gray-900'
                           : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
-                        : selectedNoBuildIds.includes(area.id as SelectableNoBuildId)
-                          ? 'bg-red-600 text-white border-red-700'
-                          : 'bg-white text-gray-700 border-gray-200 hover:bg-red-50'
+                        : selectedNoBuildIds.includes(area.id)
+                          ? 'bg-gray-900 text-white border-gray-900'
+                          : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
                     )}
                     aria-pressed={
                       area.id === 'none'
                         ? selectedNoBuildIds.length === 0
-                        : selectedNoBuildIds.includes(area.id as SelectableNoBuildId)
+                        : selectedNoBuildIds.includes(area.id)
                     }
                   >
                     {area.label}
@@ -442,7 +474,55 @@ export const CommunityView: React.FC = () => {
                 )}
               </div>
 
-              <RegionalMapPreview selectedNoBuildIds={selectedNoBuildIds} />
+              <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                <div className="px-2 py-1 bg-gray-50 border-b text-[10px] font-bold text-gray-700 flex items-center justify-between">
+                  <span>No-build map</span>
+                  <span className="text-gray-500">
+                    Selected:{' '}
+                    {selectedNoBuildIds.length === 0
+                      ? 'None'
+                      : selectedNoBuildIds
+                          .map(id => NO_BUILD_AREAS.find(a => a.id === id)?.label)
+                          .filter(Boolean)
+                          .join(', ')}
+                  </span>
+                </div>
+                <div className="relative w-full aspect-[4/3] bg-gray-100">
+                  <img
+                    src="/regional-map.png"
+                    alt="Regional map"
+                    className="absolute inset-0 w-full h-full object-cover"
+                  />
+
+                  <div
+                    className={clsx(
+                      'absolute top-[6%] left-[18%] w-[70%] h-[30%] rounded-full bg-red-500 blur-2xl transition-opacity duration-300',
+                      selectedNoBuildIds.includes('mountain') ? 'opacity-30' : 'opacity-0'
+                    )}
+                  />
+                  <div
+                    className={clsx(
+                      'absolute top-[30%] left-[0%] w-[28%] h-[40%] rounded-full bg-red-500 blur-2xl transition-opacity duration-300',
+                      selectedNoBuildIds.includes('oldtown') ? 'opacity-30' : 'opacity-0'
+                    )}
+                  />
+                  <div
+                    className={clsx(
+                      'absolute bottom-[0%] left-[0%] w-[55%] h-[42%] rounded-full bg-red-500 blur-2xl transition-opacity duration-300',
+                      selectedNoBuildIds.includes('aquifer') ? 'opacity-30' : 'opacity-0'
+                    )}
+                  />
+                  <div
+                    className={clsx(
+                      'absolute bottom-[10%] right-[0%] w-[38%] h-[38%] rounded-full bg-red-500 blur-2xl transition-opacity duration-300',
+                      selectedNoBuildIds.includes('campus') ? 'opacity-30' : 'opacity-0'
+                    )}
+                  />
+                </div>
+                <div className="px-2 py-1 text-[10px] text-gray-500">
+                  Shaded zones show all selected “do not build here” constraints.
+                </div>
+              </div>
 
               <div className="text-[10px] text-gray-400 text-center italic">
                 Hover over a selected benefit to see details.

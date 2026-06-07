@@ -5,16 +5,24 @@ import { BenefitUtilityCostChart } from './BenefitUtilityCostChart';
 import { AdminNegotiationMap } from './map/AdminNegotiationMap';
 import type { SelectableNoBuildId } from '../data/noBuildAreas';
 import {
+  getMaxNoBuildZonesForCommunityWinner,
+  getMaxNoBuildZonesForMineSizeKm2,
+  validateNoGoZoneFeasibility,
+} from '../data/noBuildAreas';
+import {
   findIndustrialNoBuildConflicts,
   parseIndustrialPlacements,
   type IndustrialPlacementRecord,
 } from '../data/mapOverlap';
+import { getCsvField, parseCsvLine } from '../utils/csvParse';
 
 interface CommunityResult {
   winnerId: string;
   consensusAreaIds: SelectableNoBuildId[];
   benefitsCount: number;
   selectedBenefitIds: string[];
+  noGoZoneCount: number;
+  maxNoGoZones: number | null;
 }
 
 interface DeveloperResult {
@@ -62,44 +70,56 @@ function parseNoBuildIds(raw: string): SelectableNoBuildId[] {
 }
 
 const parseCSV = (text: string, type: 'community' | 'developer'): CommunityResult | DeveloperResult | null => {
-  const lines = text.trim().split('\n');
+  const lines = text.trim().split(/\r?\n/).filter(Boolean);
   if (lines.length < 2) return null;
-  const header = lines[0].split(',').map(h => h.trim());
-  const values = lines[1].split(',');
+  const header = parseCsvLine(lines[0]);
+  const values = parseCsvLine(lines[1]);
 
   if (type === 'community') {
-    const benefitIds = values[2] ? values[2].split('|').map(id => id.trim()) : [];
-    const consensusRaw = values[3] ?? values[header.indexOf('consensusAreaId')] ?? 'none';
+    const winnerId = getCsvField(header, values, 'winnerId') || values[0] || 'none';
+    const benefitsCount = Number(
+      getCsvField(header, values, 'benefitsCount') || values[1] || '0'
+    );
+    const benefitIdsRaw = getCsvField(header, values, 'benefitIds') || values[2] || '';
+    const benefitIds = benefitIdsRaw ? benefitIdsRaw.split('|').map(id => id.trim()) : [];
+    const consensusRaw =
+      getCsvField(header, values, 'consensusAreaId') || values[3] || 'none';
+    const consensusAreaIds = parseNoBuildIds(consensusRaw);
+    const noGoFromCsv = getCsvField(header, values, 'noGoZoneCount');
+    const maxFromCsv = getCsvField(header, values, 'maxNoGoZones');
+    const noGoZoneCount = noGoFromCsv
+      ? Number(noGoFromCsv)
+      : consensusAreaIds.length;
+    const parsedMax = maxFromCsv ? Number(maxFromCsv) : NaN;
+
     return {
-      winnerId: values[0],
-      consensusAreaIds: parseNoBuildIds(consensusRaw),
-      benefitsCount: Number(values[1]),
+      winnerId,
+      consensusAreaIds,
+      benefitsCount,
       selectedBenefitIds: benefitIds,
+      noGoZoneCount,
+      maxNoGoZones: Number.isFinite(parsedMax) ? parsedMax : null,
     } as CommunityResult;
   }
 
-  const hasIndustrialCol = header.includes('industrial_placements');
-  const benefitIdx = header.indexOf('selected_benefits');
-  const industrialIdx = header.indexOf('industrial_placements');
-  const waterIdx = header.indexOf('final_water_m3');
-  const wasteIdx = header.indexOf('final_waste_ton');
+  const benefitIdsRaw = getCsvField(header, values, 'selected_benefits');
+  const benefitIds = benefitIdsRaw
+    ? benefitIdsRaw.split('|').map(id => id.trim())
+    : [];
 
-  const benefitIds =
-    benefitIdx >= 0 && values[benefitIdx]
-      ? values[benefitIdx].split('|').map(id => id.trim())
-      : values[8]
-        ? values[8].split('|').map(id => id.trim())
-        : [];
+  const industrialRaw = getCsvField(header, values, 'industrial_placements', {
+    mergeExtraCommas: true,
+  });
 
-  const industrialRaw =
-    hasIndustrialCol && industrialIdx >= 0 ? values[industrialIdx] ?? '' : '';
+  const waterRaw = getCsvField(header, values, 'final_water_m3');
+  const wasteRaw = getCsvField(header, values, 'final_waste_ton');
 
   return {
-    size_km2: Number(values[0]),
-    capacity_mton: Number(values[1]),
-    total_budget: Number(values[2]),
-    final_water: Number(waterIdx >= 0 ? values[waterIdx] : values[6]),
-    final_waste: Number(wasteIdx >= 0 ? values[wasteIdx] : values[7]),
+    size_km2: Number(getCsvField(header, values, 'size_km2') || values[0]),
+    capacity_mton: Number(getCsvField(header, values, 'capacity_mton') || values[1]),
+    total_budget: Number(getCsvField(header, values, 'total_budget') || values[2]),
+    final_water: Number(waterRaw || values[6]),
+    final_waste: Number(wasteRaw || values[7]),
     selectedBenefitIds: benefitIds,
     industrialPlacements: parseIndustrialPlacements(industrialRaw),
   } as DeveloperResult;
@@ -149,6 +169,40 @@ export const AdminView: React.FC = () => {
       status = 'infeasible';
       messages.push(
         `CRITICAL: ${sitingConflicts.length} industrial facility placement(s) overlap community no-go zone(s). See map below.`
+      );
+    }
+
+    const zoneCount = communityData.consensusAreaIds.length;
+    const expectedMax = getMaxNoBuildZonesForCommunityWinner(communityData.winnerId);
+    const noGoCheck = validateNoGoZoneFeasibility(
+      communityData.winnerId,
+      zoneCount,
+      communityData.maxNoGoZones ?? undefined
+    );
+
+    if (communityData.noGoZoneCount !== zoneCount) {
+      status = 'infeasible';
+      messages.push(
+        `CRITICAL: CSV noGoZoneCount (${communityData.noGoZoneCount}) does not match selected zones (${zoneCount}).`
+      );
+    } else if (!noGoCheck.ok) {
+      status = 'infeasible';
+      messages.push(`CRITICAL: No-go feasibility — ${noGoCheck.message}`);
+    } else {
+      messages.push(
+        `No-go Check: PASS. ${zoneCount} zone(s) for ${SIZE_LABELS[communityData.winnerId] ?? communityData.winnerId} mine (max ${expectedMax} allowed).`
+      );
+    }
+
+    const devMaxNoGo = getMaxNoBuildZonesForMineSizeKm2(developerData.size_km2);
+    if (zoneCount > devMaxNoGo) {
+      status = 'infeasible';
+      messages.push(
+        `CRITICAL: Community selected ${zoneCount} no-go zone(s), but developer mine (${developerData.size_km2} km²) allows at most ${devMaxNoGo}.`
+      );
+    } else if (zoneCount > 0) {
+      messages.push(
+        `Cross-team no-go: ${zoneCount} community zone(s) fit within developer mine limit (${devMaxNoGo} max at ${developerData.size_km2} km²).`
       );
     }
 
@@ -247,7 +301,7 @@ export const AdminView: React.FC = () => {
         <AdminNegotiationMap
           noBuildZoneIds={communityData.consensusAreaIds}
           industrialPlacements={developerData.industrialPlacements}
-          className="max-w-3xl mx-auto w-full"
+          className="w-full"
         />
       )}
 
@@ -274,6 +328,12 @@ export const AdminView: React.FC = () => {
                     {communityData.consensusAreaIds.length === 0
                       ? 'None'
                       : communityData.consensusAreaIds.join(', ')}
+                  </span>
+                  <span className="font-semibold text-gray-600">No-go count:</span>
+                  <span>
+                    {communityData.noGoZoneCount} / max{' '}
+                    {communityData.maxNoGoZones ??
+                      getMaxNoBuildZonesForCommunityWinner(communityData.winnerId)}
                   </span>
                   <span className="font-semibold text-gray-600">Benefits:</span>
                   <span>{communityData.selectedBenefitIds.length} Selected</span>

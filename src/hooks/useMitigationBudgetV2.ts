@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo } from 'react';
 import { COMMUNITY_BENEFITS } from '../data/communityBenefits';
 import { serializeIndustrialPlacements } from '../data/mapOverlap';
+import { escapeCsvField } from '../utils/csvParse';
 import type { PlacedIndustrialSymbol } from '../components/map/mapSymbols';
 import {
   MINE_SIZES,
@@ -269,7 +270,7 @@ export function useMitigationBudgetV2({
   const handleDownloadCSV = () => {
     const benefitIdsStr = selectedBenefits.join('|');
     const tier = selectedFacility;
-    const industrialStr = serializeIndustrialPlacements(placedIndustrial);
+    const industrialStr = escapeCsvField(serializeIndustrialPlacements(placedIndustrial));
     const csvContent = `size_km2,capacity_mton,total_budget,water_alloc,waste_alloc,air_alloc,community_alloc,final_water_m3,final_waste_ton,selected_benefits,industrial_placements,air_quality_enabled,air_process,air_quality_aqi,air_aqi_range,air_budget_add,scenario_locked\n${selectedSize.value},${selectedCapacity.value},${totalBudget},${allocWater},${allocWaste},${allocAir},${communitySpend},${W_final.toFixed(0)},${S_final.toFixed(0)},${benefitIdsStr},${industrialStr},1,${tier.id},${allocAir},,${allocAir},${scenarioLocked ? 1 : 0}`;
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);

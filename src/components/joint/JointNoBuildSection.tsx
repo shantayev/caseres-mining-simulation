@@ -8,6 +8,8 @@ export type { NoBuildAreaId, SelectableNoBuildId };
 export interface JointNoBuildToolbarProps {
   selectedNoBuildIds: SelectableNoBuildId[];
   onToggle: (id: NoBuildAreaId) => void;
+  maxNoBuildZones: number;
+  mineSizeLabel?: string;
 }
 
 export const JointNoBuildToolbar: React.FC<JointNoBuildToolbarProps> = props => (
