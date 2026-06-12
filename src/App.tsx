@@ -74,7 +74,7 @@ function App() {
       <div className="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm border border-gray-200 shrink-0">
         <h1 className="text-2xl font-bold text-gray-800">
           {viewMode === 'community' ? 'Community Matrix' : 
-           viewMode === 'developer' ? 'Mining Simulation' :
+           viewMode === 'developer' ? 'Technical View' :
            'Administrator Dashboard'}
         </h1>
         <button 
