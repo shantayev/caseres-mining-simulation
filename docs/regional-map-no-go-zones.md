@@ -27,6 +27,12 @@ Mountain Trails and Ore Body are **separate** selections (not merged).
 
 Overlays are defined in `src/components/map/noBuildZones.ts` and rendered by `NoBuildOverlays.tsx`.
 
+**Alignment notes (regional-map.png):**
+
+- **Ore Body** — compact dashed-border box on the gray dotted ore outline (upper center); does not overlap the mountain-trails overlays.
+- **Mountain Trails** — north-center band directly above the ore body (not the side agricultural fields).
+- **Old Town** — centered on the Old Town sign and built-up cluster (middle of the map).
+
 ---
 
 ## 3. Max no-go zones (by winning / technical mine size)

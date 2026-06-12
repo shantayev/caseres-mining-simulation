@@ -29,14 +29,16 @@ export const NoBuildOverlays: React.FC<NoBuildOverlaysProps> = ({
   className,
 }) => (
   <div className={clsx('pointer-events-none absolute inset-0', className)}>
-    {NO_BUILD_ZONE_RECTS.map(zone => {
+    {NO_BUILD_ZONE_RECTS.map((zone, index) => {
       const selected = selectedNoBuildIds.includes(zone.id);
       const mismatch = highlightMismatchZoneIds.includes(zone.id);
       const visible = selected || mismatch;
       const shape = ZONE_SHAPE[zone.id];
+      const showLabel =
+        visible && NO_BUILD_ZONE_RECTS.findIndex(z => z.id === zone.id) === index;
       return (
         <div
-          key={zone.id}
+          key={`${zone.id}-${index}`}
           className={clsx(
             'absolute transition-all duration-300 box-border',
             shape.rounded,
@@ -54,7 +56,7 @@ export const NoBuildOverlays: React.FC<NoBuildOverlaysProps> = ({
           }}
           aria-hidden={!visible}
         >
-          {visible && (
+          {showLabel && (
             <span className="absolute top-0.5 left-1 text-[8px] font-bold text-red-900 bg-white/80 px-1 rounded leading-tight max-w-[90%] truncate">
               {getNoBuildAreaLabel(zone.id)}
             </span>
