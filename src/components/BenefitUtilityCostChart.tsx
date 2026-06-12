@@ -14,10 +14,14 @@ import {
   Cell,
 } from 'recharts';
 import {
+  BENEFIT_LEVER_CATEGORY,
   calculateWeightedBenefitUtility,
   getLeverWeightsForAllocations,
+  weightForBenefitId,
   type LeverWeights,
 } from '../data/benefitLeverWeights';
+import { COMMUNITY_BENEFITS } from '../data/communityBenefits';
+import type { CommunityBenefitId } from '../data/communityBenefits';
 
 export const BENEFIT_VALUES: Record<string, { cost: number; util: number }> = {
   research: { cost: 5000000, util: 0.33 },
@@ -54,6 +58,82 @@ function percentileValue(sortedAsc: number[], p: number): number {
   const hi = Math.ceil(idx);
   if (lo === hi) return sortedAsc[lo];
   return sortedAsc[lo] + (sortedAsc[hi] - sortedAsc[lo]) * (idx - lo);
+}
+
+const LEVER_LABEL: Record<'water' | 'waste' | 'air', string> = {
+  water: 'water',
+  waste: 'waste',
+  air: 'air',
+};
+
+function benefitLabel(id: string): string {
+  return COMMUNITY_BENEFITS.find(b => b.id === id)?.label ?? id;
+}
+
+function percentileBand(
+  utility: number,
+  sortedUtilities: number[],
+  benefitIds: string[]
+): string | null {
+  if (benefitIds.length === 0) return null;
+  if (sortedUtilities.length < 2) return null;
+  const p25 = percentileValue(sortedUtilities, 25);
+  const p75 = percentileValue(sortedUtilities, 75);
+  if (utility < p25) return 'bottom 25% of bundles (red)';
+  if (utility <= p75) return 'middle 50% of bundles (orange)';
+  return 'top 25% of bundles (green)';
+}
+
+function buildBundleTooltipLines(
+  benefitIds: string[],
+  utility: number,
+  cost: number,
+  weights: LeverWeights,
+  hasLeverAllocations: boolean,
+  percentileLabel: string | null,
+  isMatch: boolean
+): string[] {
+  if (benefitIds.length === 0) {
+    return [
+      'No community benefits in this package.',
+      'Utility and cost are both zero.',
+      'Select benefits in the matrix or developer panel to compare funded bundles.',
+    ];
+  }
+
+  const names = benefitIds.map(benefitLabel).join(', ');
+  const lines: string[] = [
+    `This package includes: ${names}.`,
+  ];
+
+  if (hasLeverAllocations) {
+    const parts = benefitIds.map(id => {
+      const base = BASE_UTIL_BY_ID[id] ?? 0;
+      const w = weightForBenefitId(id, weights);
+      const cat = BENEFIT_LEVER_CATEGORY[id as CommunityBenefitId];
+      return `${benefitLabel(id)}: ${base.toFixed(2)} × ${w.toFixed(2)} (${LEVER_LABEL[cat]})`;
+    });
+    lines.push(`Utility sums base score × lever weight per benefit: ${parts.join('; ')}.`);
+  } else {
+    const parts = benefitIds.map(id => {
+      const base = BASE_UTIL_BY_ID[id] ?? 0;
+      return `${benefitLabel(id)} ${base.toFixed(2)}`;
+    });
+    lines.push(`Utility is the sum of base scores (weights = 1.0): ${parts.join(' + ')}.`);
+  }
+
+  lines.push(
+    `Total utility = ${utility.toFixed(3)}; total cost = $${(cost / 1_000_000).toFixed(1)}M.`
+  );
+
+  if (percentileLabel) {
+    lines.push(`Ranked in the ${percentileLabel}.`);
+  }
+  if (isMatch) {
+    lines.push('★ This is the current team selection (black ring).');
+  }
+
+  return lines;
 }
 
 /** Red = bottom 25%, orange = middle 50%, green = top 25% by utility. */
@@ -165,18 +245,32 @@ export const BenefitUtilityCostChart: React.FC<BenefitUtilityCostChartProps> = (
     [highlightBenefitIds, leverAllocations]
   );
 
+  const hasLeverAllocations = leverAllocations != null;
+
   const chartData = useMemo(() => {
     const rows = generateBundleChartRows(weights, true);
     const utilitiesForRank = rows
       .filter(r => r.benefitIds.length > 0)
       .map(r => r.utility)
       .sort((a, b) => a - b);
-    return rows.map(item => ({
-      ...item,
-      isMatch: choice ? sameBenefitSet(item.benefitIds, highlightBenefitIds) : false,
-      fillColor: utilityPercentileColor(item.utility, utilitiesForRank, item.benefitIds),
-    }));
-  }, [weights, choice, highlightBenefitIds]);
+    return rows.map(item => {
+      const isMatch = choice ? sameBenefitSet(item.benefitIds, highlightBenefitIds) : false;
+      return {
+        ...item,
+        isMatch,
+        fillColor: utilityPercentileColor(item.utility, utilitiesForRank, item.benefitIds),
+        tooltipLines: buildBundleTooltipLines(
+          item.benefitIds,
+          item.utility,
+          item.cost,
+          weights,
+          hasLeverAllocations,
+          percentileBand(item.utility, utilitiesForRank, item.benefitIds),
+          isMatch
+        ),
+      };
+    });
+  }, [weights, choice, highlightBenefitIds, hasLeverAllocations]);
 
   return (
     <div
@@ -186,12 +280,14 @@ export const BenefitUtilityCostChart: React.FC<BenefitUtilityCostChartProps> = (
       )}
     >
       <h3 className="text-sm font-bold text-gray-700 mb-1 text-center shrink-0">{title}</h3>
-      {leverAllocations != null && (
-        <p className="text-[10px] text-gray-600 text-center mb-1 shrink-0">
-          Lever weights (utility scaling): water ×{weights.water.toFixed(2)}, waste ×
-          {weights.waste.toFixed(2)}, air ×{weights.air.toFixed(2)}
-        </p>
-      )}
+      <p className="text-[10px] text-gray-600 text-center mb-1 shrink-0 leading-snug px-1">
+        Each dot is one benefit bundle. <strong>Utility</strong> sums each benefit&apos;s base score
+        (research 0.33 → park 0.07) times an environmental weight (water, waste, or air).
+        {hasLeverAllocations
+          ? ` Weights follow mitigation spend (water ×${weights.water.toFixed(2)}, waste ×${weights.waste.toFixed(2)}, air ×${weights.air.toFixed(2)}).`
+          : ' On Admin, weights are 1.0.'}{' '}
+        <strong>Cost</strong> is the sum of benefit price tags. Hover a dot for the calculation.
+      </p>
       <p className="text-[9px] text-gray-500 text-center mb-1 shrink-0">
         Dot color: red = bottom 25% utility, orange = middle 50%, green = top 25% (black ring =
         current selection)
@@ -218,13 +314,13 @@ export const BenefitUtilityCostChart: React.FC<BenefitUtilityCostChartProps> = (
               if (active && payload && payload.length) {
                 const data = payload[0].payload as (typeof chartData)[0];
                 return (
-                  <div className="bg-white p-2 border rounded shadow text-xs">
-                    <p className="font-bold">{data.label}</p>
-                    <p>Cost: ${(data.cost / 1000000).toFixed(1)}M</p>
-                    <p>Utility: {data.utility.toFixed(3)}</p>
-                    {data.isMatch && (
-                      <p className="text-red-500 font-bold mt-1">★ Current selection</p>
-                    )}
+                  <div className="bg-white p-2.5 border rounded-lg shadow-lg text-xs max-w-[280px]">
+                    <p className="font-bold text-gray-900 mb-1.5">{data.label}</p>
+                    {data.tooltipLines.map((line, i) => (
+                      <p key={i} className="text-gray-700 leading-snug mb-1 last:mb-0">
+                        {line}
+                      </p>
+                    ))}
                   </div>
                 );
               }

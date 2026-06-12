@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo } from 'react';
 import { COMMUNITY_BENEFITS } from '../data/communityBenefits';
 import { serializeIndustrialPlacements } from '../data/mapOverlap';
+import { validateIndustrialPlacements } from '../data/industrialPlacementRules';
 import { escapeCsvField } from '../utils/csvParse';
 import type { PlacedIndustrialSymbol } from '../components/map/mapSymbols';
 import {
@@ -268,6 +269,21 @@ export function useMitigationBudgetV2({
   };
 
   const handleDownloadCSV = () => {
+    if (!scenarioLocked) {
+      alert('Lock your scenario before exporting results.');
+      return;
+    }
+    const placementCheck = validateIndustrialPlacements(placedIndustrial, {
+      mineSizeKm2: selectedSize.value,
+      capacityMton: selectedCapacity.value,
+      facilityTier: selectedFacilityId,
+    });
+    if (!placementCheck.ok) {
+      alert(
+        `Facility siting does not match scenario rules:\n\n${placementCheck.messages.join('\n')}`
+      );
+      return;
+    }
     const benefitIdsStr = selectedBenefits.join('|');
     const tier = selectedFacility;
     const industrialStr = escapeCsvField(serializeIndustrialPlacements(placedIndustrial));

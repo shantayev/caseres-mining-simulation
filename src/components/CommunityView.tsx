@@ -8,6 +8,7 @@ import {
   type NoBuildAreaId,
   type SelectableNoBuildId,
 } from '../data/noBuildAreas';
+import { NoBuildOverlays } from './map/NoBuildOverlays';
 
 type GroupId = 'tourism' | 'agriculture' | 'academics' | 'industries' | 'environmental';
 type MineSizeId = '8km' | '4km' | '2km' | '1km' | '0.5km' | 'oppose';
@@ -491,36 +492,13 @@ export const CommunityView: React.FC = () => {
                   <img
                     src="/regional-map.png"
                     alt="Regional map"
-                    className="absolute inset-0 w-full h-full object-cover"
+                    className="absolute inset-0 w-full h-full object-contain object-center"
                   />
-
-                  <div
-                    className={clsx(
-                      'absolute top-[6%] left-[18%] w-[70%] h-[30%] rounded-full bg-red-500 blur-2xl transition-opacity duration-300',
-                      selectedNoBuildIds.includes('mountain') ? 'opacity-30' : 'opacity-0'
-                    )}
-                  />
-                  <div
-                    className={clsx(
-                      'absolute top-[30%] left-[0%] w-[28%] h-[40%] rounded-full bg-red-500 blur-2xl transition-opacity duration-300',
-                      selectedNoBuildIds.includes('oldtown') ? 'opacity-30' : 'opacity-0'
-                    )}
-                  />
-                  <div
-                    className={clsx(
-                      'absolute bottom-[0%] left-[0%] w-[55%] h-[42%] rounded-full bg-red-500 blur-2xl transition-opacity duration-300',
-                      selectedNoBuildIds.includes('aquifer') ? 'opacity-30' : 'opacity-0'
-                    )}
-                  />
-                  <div
-                    className={clsx(
-                      'absolute bottom-[10%] right-[0%] w-[38%] h-[38%] rounded-full bg-red-500 blur-2xl transition-opacity duration-300',
-                      selectedNoBuildIds.includes('campus') ? 'opacity-30' : 'opacity-0'
-                    )}
-                  />
+                  <NoBuildOverlays selectedNoBuildIds={selectedNoBuildIds} />
                 </div>
                 <div className="px-2 py-1 text-[10px] text-gray-500">
-                  Shaded zones show all selected “do not build here” constraints.
+                  Selected no-go zones show a red border and light fill. Mountain Trails and Ore Body
+                  are separate regions.
                 </div>
               </div>
 

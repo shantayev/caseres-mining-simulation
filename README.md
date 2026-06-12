@@ -57,6 +57,12 @@ To ensure role separation, each interface is protected by a PIN code.
 
 ## 🛠️ Technical Maintenance
 
+### Documentation
+
+- **[Community benefit utility calculation](docs/utility-calculation.md)** — coefficients, lever weights, formulas, hover tooltips, and chart interpretation (Admin & Joint).
+- **[Regional map & no-go zones](docs/regional-map-no-go-zones.md)** — five selectable regions, bordered overlays, mine-size limits.
+- **[Industrial facility siting rules](docs/facility-siting-rules.md)** — extraction, refining, processing, and manufacturing placement rules (Developer view).
+
 ### Running Locally
 ```bash
 git clone https://github.com/YOUR_USERNAME/caseras-negotiation-app.git

@@ -25,6 +25,11 @@ import {
 } from './mapGeometry';
 import { isPointInNoBuildZone } from './noBuildZones';
 import { NoBuildOverlays } from './NoBuildOverlays';
+import {
+  canPlaceIndustrialType,
+  formatFacilityPlacementSummary,
+  type IndustrialScenario,
+} from '../../data/industrialPlacementRules';
 
 export interface BenefitPlacement {
   xPct: number;
@@ -46,6 +51,9 @@ export interface DraggableRegionalMapProps {
   onBenefitRemove?: (id: CommunityBenefitId) => void;
   /** Smaller map footprint (developer dashboard, matches community preview size). */
   compact?: boolean;
+  /** Mine size, capacity, and facility tier for industrial placement limits (technical mode). */
+  industrialScenario?: IndustrialScenario | null;
+  scenarioLocked?: boolean;
   className?: string;
 }
 
@@ -66,6 +74,8 @@ export const DraggableRegionalMap: React.FC<DraggableRegionalMapProps> = ({
   onBenefitPlace,
   onBenefitRemove,
   compact = false,
+  industrialScenario = null,
+  scenarioLocked = false,
   className,
 }) => {
   const isTechnical = mode === 'technical';
@@ -145,17 +155,50 @@ export const DraggableRegionalMap: React.FC<DraggableRegionalMapProps> = ({
         }
         return;
       }
-      setPlacedIndustrial(prev => [
-        ...prev,
-        {
-          id: nextSymbolId(),
-          type,
-          xPct: clampPct(pct.xPct),
-          yPct: clampPct(pct.yPct),
-        },
-      ]);
+      if (isTechnical && industrialScenario && scenarioLocked) {
+        const check = canPlaceIndustrialType(type, placedIndustrial, industrialScenario);
+        if (!check.ok) {
+          alert(check.message);
+          return;
+        }
+      }
+      const newSym: PlacedIndustrialSymbol = {
+        id: nextSymbolId(),
+        type,
+        xPct: clampPct(pct.xPct),
+        yPct: clampPct(pct.yPct),
+      };
+      if (
+        isTechnical &&
+        type === 'processing' &&
+        industrialScenario &&
+        scenarioLocked
+      ) {
+        const refining = placedIndustrial.filter(p => p.type === 'refining');
+        if (
+          refining.length > 0 &&
+          !refining.some(
+            ref =>
+              Math.hypot(ref.xPct - newSym.xPct, ref.yPct - newSym.yPct) <= 15
+          )
+        ) {
+          alert(
+            'Processing must be placed within 15% map distance of a refining facility.'
+          );
+          return;
+        }
+      }
+      setPlacedIndustrial(prev => [...prev, newSym]);
     },
-    [resolveDropPercent, canPlaceAt, setPlacedIndustrial, isTechnical]
+    [
+      resolveDropPercent,
+      canPlaceAt,
+      setPlacedIndustrial,
+      isTechnical,
+      industrialScenario,
+      scenarioLocked,
+      placedIndustrial,
+    ]
   );
 
   const handleMapDragOver = (e: React.DragEvent) => {
@@ -213,6 +256,16 @@ export const DraggableRegionalMap: React.FC<DraggableRegionalMapProps> = ({
 
     if (draggingCategory === 'industrial') {
       if (!canPlaceAt(x, y)) return;
+      const sym = placedIndustrial.find(s => s.id === draggingId);
+      if (sym?.type === 'processing' && industrialScenario && scenarioLocked) {
+        const refining = placedIndustrial.filter(p => p.type === 'refining');
+        if (
+          refining.length > 0 &&
+          !refining.some(ref => Math.hypot(ref.xPct - x, ref.yPct - y) <= 15)
+        ) {
+          return;
+        }
+      }
       setPlacedIndustrial(prev =>
         prev.map(s => (s.id === draggingId ? { ...s, xPct: x, yPct: y } : s))
       );
@@ -476,9 +529,17 @@ export const DraggableRegionalMap: React.FC<DraggableRegionalMapProps> = ({
       <div className="px-2 py-1 text-[10px] text-gray-500 border-t bg-white shrink-0 space-y-0.5">
         <p>
           {isTechnical
-            ? 'Drag extraction, refining, processing, or manufacturing onto feasible map locations.'
+            ? 'Lock scenario first, then site facilities per mine size, capacity, and facility tier.'
             : 'Shaded zones = no-build areas — industrial symbols cannot be placed there.'}
         </p>
+        {isTechnical && industrialScenario && scenarioLocked && (
+          <p className="font-medium text-gray-700">
+            Required: {formatFacilityPlacementSummary(placedIndustrial, industrialScenario)}
+          </p>
+        )}
+        {isTechnical && !scenarioLocked && (
+          <p className="text-amber-700">Lock scenario in Configuration before placing facilities.</p>
+        )}
         {!isTechnical && (
           <p>
             Drag industrial symbols from above or community benefits from the left; double-click or ✕

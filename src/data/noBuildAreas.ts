@@ -7,13 +7,18 @@ export interface NoBuildAreaDef {
   description: string;
 }
 
-/** Selectable no-go regions (mountain covers the ore body area). */
+/** Selectable no-go regions on the regional map. */
 export const NO_BUILD_AREAS: NoBuildAreaDef[] = [
   { id: 'none', label: 'No restriction', description: 'No area is excluded from mining.' },
   {
     id: 'mountain',
-    label: 'Mountain Trails / Ore Body',
-    description: 'Exclude the mountain trails and estimated ore body from mining.',
+    label: 'Mountain Trails',
+    description: 'Exclude the mountain trails area from mining.',
+  },
+  {
+    id: 'ore_body',
+    label: 'Ore Body',
+    description: 'Exclude the estimated ore body from mining.',
   },
   {
     id: 'oldtown',
@@ -57,7 +62,6 @@ export function getMaxNoBuildZonesForCommunityWinner(winnerId: string | null | u
 }
 
 export function getNoBuildAreaLabel(id: SelectableNoBuildId): string {
-  if (id === 'ore_body') return 'Ore Body (legacy)';
   return NO_BUILD_AREAS.find(a => a.id === id)?.label ?? id;
 }
 

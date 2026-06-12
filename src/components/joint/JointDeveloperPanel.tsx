@@ -1,6 +1,6 @@
 import React from 'react';
 import { MitigationBudgetControls } from '../MitigationBudgetControls';
-import type { MineSize, Capacity } from '../../data/mitigationConstants';
+import type { MineSize, Capacity, AirTierId } from '../../data/mitigationConstants';
 
 export interface JointDeveloperPanelProps {
   selectedBenefits: string[];
@@ -14,7 +14,12 @@ export interface JointDeveloperPanelProps {
     allocWaste: number;
     allocAir: number;
   }) => void;
-  onScenarioStateChange?: (s: { selectedSize: MineSize; selectedCapacity: Capacity }) => void;
+  onScenarioStateChange?: (s: {
+    selectedSize: MineSize;
+    selectedCapacity: Capacity;
+    selectedFacilityId: AirTierId;
+    scenarioLocked: boolean;
+  }) => void;
 }
 
 /** Joint developer controls — same two-step budget flow as DeveloperView. */

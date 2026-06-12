@@ -28,7 +28,12 @@ export interface MitigationBudgetControlsProps {
     allocWaste: number;
     allocAir: number;
   }) => void;
-  onScenarioStateChange?: (s: { selectedSize: MineSize; selectedCapacity: Capacity }) => void;
+  onScenarioStateChange?: (s: {
+    selectedSize: MineSize;
+    selectedCapacity: Capacity;
+    selectedFacilityId: AirTierId;
+    scenarioLocked: boolean;
+  }) => void;
   showSubmitButton?: boolean;
 }
 
@@ -71,8 +76,16 @@ export const MitigationBudgetControls: React.FC<MitigationBudgetControlsProps> =
     onScenarioStateChange?.({
       selectedSize: b.selectedSize,
       selectedCapacity: b.selectedCapacity,
+      selectedFacilityId: b.selectedFacilityId,
+      scenarioLocked: b.scenarioLocked,
     });
-  }, [b.selectedSize, b.selectedCapacity, onScenarioStateChange]);
+  }, [
+    b.selectedSize,
+    b.selectedCapacity,
+    b.selectedFacilityId,
+    b.scenarioLocked,
+    onScenarioStateChange,
+  ]);
 
   const dropdownClass = (locked: boolean) =>
     clsx('p-2 border rounded text-sm', locked ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-gray-50');

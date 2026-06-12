@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { MitigationBudgetControls } from './MitigationBudgetControls';
 import { DraggableRegionalMap } from './map/DraggableRegionalMap';
 import type { PlacedIndustrialSymbol } from './map/mapSymbols';
@@ -7,6 +7,7 @@ import {
   CAPACITIES,
   type MineSize,
   type Capacity,
+  type AirTierId,
 } from '../data/mitigationConstants';
 import { MapPin } from 'lucide-react';
 
@@ -15,6 +16,17 @@ export const DeveloperView: React.FC = () => {
   const [placedIndustrial, setPlacedIndustrial] = useState<PlacedIndustrialSymbol[]>([]);
   const [selectedSize, setSelectedSize] = useState<MineSize>(MINE_SIZES[0]);
   const [selectedCapacity, setSelectedCapacity] = useState<Capacity>(CAPACITIES[0]);
+  const [selectedFacilityId, setSelectedFacilityId] = useState<AirTierId>('extraction');
+  const [scenarioLocked, setScenarioLocked] = useState(false);
+
+  const industrialScenario = useMemo(
+    () => ({
+      mineSizeKm2: selectedSize.value,
+      capacityMton: selectedCapacity.value,
+      facilityTier: selectedFacilityId,
+    }),
+    [selectedSize, selectedCapacity, selectedFacilityId]
+  );
 
   const toggleBenefit = useCallback((id: string) => {
     setSelectedBenefits(prev =>
@@ -24,12 +36,20 @@ export const DeveloperView: React.FC = () => {
 
   const handleScenarioUnlock = useCallback(() => {
     setSelectedBenefits([]);
+    setPlacedIndustrial([]);
   }, []);
 
   const handleScenarioStateChange = useCallback(
-    (s: { selectedSize: MineSize; selectedCapacity: Capacity }) => {
+    (s: {
+      selectedSize: MineSize;
+      selectedCapacity: Capacity;
+      selectedFacilityId: AirTierId;
+      scenarioLocked: boolean;
+    }) => {
       setSelectedSize(s.selectedSize);
       setSelectedCapacity(s.selectedCapacity);
+      setSelectedFacilityId(s.selectedFacilityId);
+      setScenarioLocked(s.scenarioLocked);
     },
     []
   );
@@ -81,6 +101,8 @@ export const DeveloperView: React.FC = () => {
             selectedNoBuildIds={[]}
             placedIndustrial={placedIndustrial}
             onPlacedIndustrialChange={setPlacedIndustrial}
+            industrialScenario={industrialScenario}
+            scenarioLocked={scenarioLocked}
           />
         </div>
       </div>

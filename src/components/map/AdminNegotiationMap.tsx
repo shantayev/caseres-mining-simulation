@@ -152,8 +152,8 @@ export const AdminNegotiationMap: React.FC<AdminNegotiationMapProps> = ({
           <div className="space-y-3">
             <p className="font-bold text-gray-900 text-base">Legend</p>
             <p className="flex items-center gap-3 text-gray-800">
-              <span className="w-6 h-4 rounded bg-red-500/40 border border-red-300 shrink-0" />
-              Red shading = community no-go zone
+              <span className="w-6 h-4 rounded bg-red-500/20 border-2 border-red-600 shrink-0" />
+              Red border = community no-go zone
             </p>
             <p className="flex items-center gap-3 text-gray-800">
               <span className="w-7 h-7 rounded-full border-2 border-slate-500 bg-slate-100 shrink-0" />
