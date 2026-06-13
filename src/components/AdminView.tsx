@@ -7,13 +7,16 @@ import type { SelectableNoBuildId } from '../data/noBuildAreas';
 import {
   getMaxNoBuildZonesForCommunityWinner,
   getMaxNoBuildZonesForMineSizeKm2,
+  getNoBuildAreaLabel,
   validateNoGoZoneFeasibility,
 } from '../data/noBuildAreas';
+import { getCommunityBenefit } from '../data/communityBenefits';
 import {
   findIndustrialNoBuildConflicts,
   parseIndustrialPlacements,
   type IndustrialPlacementRecord,
 } from '../data/mapOverlap';
+import { getIndustrialSymbolDef, type IndustrialSymbolType } from './map/mapSymbols';
 import { getCsvField, parseCsvLine } from '../utils/csvParse';
 
 interface CommunityResult {
@@ -133,6 +136,317 @@ const getDevSizeId = (sizeVal: number): string => {
   return '0.5km';
 };
 
+type SectionVerdict = 'pass' | 'warn' | 'fail';
+
+interface FeasibilitySection {
+  title: string;
+  verdict: SectionVerdict;
+  summary: string;
+  details: string[];
+}
+
+interface FeasibilityResult {
+  status: 'optimal' | 'suboptimal' | 'infeasible';
+  sections: {
+    sizeAlignment: FeasibilitySection;
+    environmentalBenefits: FeasibilitySection;
+    mapSiting: FeasibilitySection;
+  };
+}
+
+const WATER_LIMIT_M3 = 800_000;
+const WASTE_LIMIT_TON = 5_000_000;
+
+function benefitLabel(id: string): string {
+  return getCommunityBenefit(id)?.label ?? id;
+}
+
+function buildFeasibilityAnalysis(
+  communityData: CommunityResult,
+  developerData: DeveloperResult,
+  sitingConflicts: ReturnType<typeof findIndustrialNoBuildConflicts>
+): FeasibilityResult {
+  const sizeDetails: string[] = [];
+  let sizeVerdict: SectionVerdict = 'pass';
+
+  const communitySizeLabel =
+    SIZE_LABELS[communityData.winnerId] ?? communityData.winnerId;
+  const devSizeId = getDevSizeId(developerData.size_km2);
+  const devSizeLabel = SIZE_LABELS[devSizeId] ?? `${developerData.size_km2} km²`;
+
+  sizeDetails.push(
+    `Community voted for a ${communitySizeLabel} mine. Developer proposed ${devSizeLabel} (${developerData.size_km2} km²) at ${developerData.capacity_mton} Mt capacity.`
+  );
+
+  const commIndex = SIZE_INDICES[communityData.winnerId];
+  const devIndex = SIZE_INDICES[devSizeId];
+  const safeDevIndex = devIndex ?? 99;
+  const sizeGap = Math.abs(safeDevIndex - commIndex);
+
+  if (sizeGap === 0) {
+    sizeDetails.push('Mine sizes match — both sides targeted the same scale.');
+  } else if (sizeGap <= 2) {
+    sizeVerdict = 'warn';
+    sizeDetails.push(
+      `Mine sizes are close but not identical (${sizeGap} step${sizeGap === 1 ? '' : 's'} apart). The deal may still work, but alignment is not ideal.`
+    );
+  } else {
+    sizeVerdict = 'fail';
+    sizeDetails.push(
+      `Mine sizes are too far apart (${sizeGap} steps). Community and developer are not negotiating the same project scale — not feasible.`
+    );
+  }
+
+  const zoneCount = communityData.consensusAreaIds.length;
+  const expectedMax = getMaxNoBuildZonesForCommunityWinner(communityData.winnerId);
+  const noGoCheck = validateNoGoZoneFeasibility(
+    communityData.winnerId,
+    zoneCount,
+    communityData.maxNoGoZones ?? undefined
+  );
+  const devMaxNoGo = getMaxNoBuildZonesForMineSizeKm2(developerData.size_km2);
+
+  if (communityData.noGoZoneCount !== zoneCount) {
+    sizeVerdict = 'fail';
+    sizeDetails.push(
+      `No-go zone count in the community file (${communityData.noGoZoneCount}) does not match selected zones (${zoneCount}).`
+    );
+  } else if (!noGoCheck.ok) {
+    sizeVerdict = 'fail';
+    sizeDetails.push(noGoCheck.message ?? 'Too many no-go zones for the community mine size.');
+  } else {
+    sizeDetails.push(
+      `Community no-go zones: ${zoneCount} selected (max ${expectedMax} allowed for ${communitySizeLabel}).`
+    );
+  }
+
+  if (zoneCount > devMaxNoGo) {
+    sizeVerdict = 'fail';
+    sizeDetails.push(
+      `Community chose ${zoneCount} no-go zone(s), but the developer's ${developerData.size_km2} km² mine only allows ${devMaxNoGo}.`
+    );
+  } else if (zoneCount > 0) {
+    sizeDetails.push(
+      `No-go zones fit the developer mine limit (${devMaxNoGo} max at ${developerData.size_km2} km²).`
+    );
+  }
+
+  const sizeSummary =
+    sizeVerdict === 'pass'
+      ? 'Mine size and no-go zone limits align between community and developer.'
+      : sizeVerdict === 'warn'
+        ? 'Mine sizes are close, but not a perfect match.'
+        : 'Mine size or no-go zone rules block this deal.';
+
+  const envDetails: string[] = [];
+  let envVerdict: SectionVerdict = 'pass';
+
+  envDetails.push(
+    'We check whether developer mitigation is enough for what the community asked for: water and waste limits when sensitive benefits are selected, and full funding of requested benefits.'
+  );
+
+  const hasWaterBenefit = communityData.selectedBenefitIds.some(id =>
+    ['canoe', 'irrigation'].includes(id)
+  );
+  if (hasWaterBenefit) {
+    const waterK = (developerData.final_water / 1000).toFixed(0);
+    if (developerData.final_water <= WATER_LIMIT_M3) {
+      envDetails.push(
+        `Water: Community selected water-sensitive benefits (canoe or irrigation). Mining must use ≤ ${(WATER_LIMIT_M3 / 1000).toFixed(0)}k m³ — developer uses ${waterK}k m³. Pass.`
+      );
+    } else {
+      envVerdict = 'fail';
+      envDetails.push(
+        `Water: Community needs canoe or irrigation, but mining uses ${waterK}k m³ (limit ${(WATER_LIMIT_M3 / 1000).toFixed(0)}k m³). Not feasible.`
+      );
+    }
+  } else {
+    envDetails.push('Water: No water-sensitive community benefits selected — water limit not applied.');
+  }
+
+  const hasWasteBenefit = communityData.selectedBenefitIds.some(id =>
+    ['park', 'energy'].includes(id)
+  );
+  if (hasWasteBenefit) {
+    const wasteM = (developerData.final_waste / 1_000_000).toFixed(1);
+    if (developerData.final_waste <= WASTE_LIMIT_TON) {
+      envDetails.push(
+        `Waste/land: Community selected park or energy benefits. Waste must stay ≤ ${(WASTE_LIMIT_TON / 1_000_000).toFixed(0)}M tons — developer produces ${wasteM}M tons. Pass.`
+      );
+    } else {
+      envVerdict = 'fail';
+      envDetails.push(
+        `Waste/land: Community needs clean land for parks or energy, but mining generates ${wasteM}M tons (limit ${(WASTE_LIMIT_TON / 1_000_000).toFixed(0)}M). Not feasible.`
+      );
+    }
+  } else {
+    envDetails.push('Waste/land: No land-sensitive community benefits selected — waste limit not applied.');
+  }
+
+  const unfundedBenefits = communityData.selectedBenefitIds.filter(
+    id => !developerData.selectedBenefitIds.includes(id)
+  );
+  if (unfundedBenefits.length === 0) {
+    envDetails.push(
+      `Benefits funding: All ${communityData.selectedBenefitIds.length} requested community benefit(s) appear in the developer package.`
+    );
+  } else {
+    if (envVerdict !== 'fail') envVerdict = 'warn';
+    const names = unfundedBenefits.map(benefitLabel).join(', ');
+    envDetails.push(
+      `Benefits funding: Developer did not fund ${unfundedBenefits.length} item(s): ${names}.`
+    );
+  }
+
+  const envSummary =
+    envVerdict === 'pass'
+      ? 'Environmental limits and benefit funding look good.'
+      : envVerdict === 'warn'
+        ? 'Limits are met, but not all requested benefits were funded.'
+        : 'Water, waste, or benefit requirements are not met.';
+
+  const mapDetails: string[] = [];
+  let mapVerdict: SectionVerdict = 'pass';
+  const facilityCount = developerData.industrialPlacements.length;
+
+  mapDetails.push(
+    'Industrial facilities must sit outside community no-go zones. See the map above: red borders = no-go zones; amber rings = conflicts.'
+  );
+
+  if (facilityCount === 0) {
+    mapVerdict = 'warn';
+    mapDetails.push('No facility placements found in the developer file — map siting could not be verified.');
+  } else if (sitingConflicts.length === 0) {
+    if (communityData.consensusAreaIds.length === 0) {
+      mapDetails.push(
+        `All ${facilityCount} facility(ies) placed. Community selected no no-go zones, so there is nothing to conflict with.`
+      );
+    } else {
+      const zoneNames = communityData.consensusAreaIds.map(getNoBuildAreaLabel).join(', ');
+      mapDetails.push(
+        `All ${facilityCount} facility(ies) are outside community no-go zones (${zoneNames}).`
+      );
+    }
+  } else {
+    mapVerdict = 'fail';
+    mapDetails.push(
+      `${sitingConflicts.length} facility placement(s) overlap a no-go zone — not feasible:`
+    );
+    sitingConflicts.forEach(c => {
+      const facilityLabel = getIndustrialSymbolDef(c.placement.type as IndustrialSymbolType).label;
+      const zones = c.zoneIds.map(getNoBuildAreaLabel).join(', ');
+      mapDetails.push(
+        `• ${facilityLabel} at (${c.placement.xPct.toFixed(0)}%, ${c.placement.yPct.toFixed(0)}%) overlaps ${zones}`
+      );
+    });
+  }
+
+  const mapSummary =
+    mapVerdict === 'pass'
+      ? 'No facility overlaps with community no-go zones.'
+      : mapVerdict === 'warn'
+        ? 'Facility siting could not be fully checked.'
+        : `${sitingConflicts.length} facility–no-go conflict(s) on the map.`;
+
+  const sectionVerdicts = [sizeVerdict, envVerdict, mapVerdict];
+  let status: FeasibilityResult['status'] = 'optimal';
+  if (sectionVerdicts.includes('fail')) {
+    status = 'infeasible';
+  } else if (sectionVerdicts.includes('warn')) {
+    status = 'suboptimal';
+  }
+
+  return {
+    status,
+    sections: {
+      sizeAlignment: {
+        title: '1. Mine size & no-go limits',
+        verdict: sizeVerdict,
+        summary: sizeSummary,
+        details: sizeDetails,
+      },
+      environmentalBenefits: {
+        title: '2. Environmental & community benefits',
+        verdict: envVerdict,
+        summary: envSummary,
+        details: envDetails,
+      },
+      mapSiting: {
+        title: '3. Map siting (facilities vs no-go zones)',
+        verdict: mapVerdict,
+        summary: mapSummary,
+        details: mapDetails,
+      },
+    },
+  };
+}
+
+const VERDICT_STYLES: Record<
+  SectionVerdict,
+  { badge: string; border: string; bg: string; label: string; Icon: typeof CheckCircle }
+> = {
+  pass: {
+    badge: 'bg-green-100 text-green-800 border-green-300',
+    border: 'border-green-200',
+    bg: 'bg-white',
+    label: 'Pass',
+    Icon: CheckCircle,
+  },
+  warn: {
+    badge: 'bg-yellow-100 text-yellow-900 border-yellow-300',
+    border: 'border-yellow-200',
+    bg: 'bg-white',
+    label: 'Warning',
+    Icon: AlertTriangle,
+  },
+  fail: {
+    badge: 'bg-red-100 text-red-900 border-red-300',
+    border: 'border-red-200',
+    bg: 'bg-white',
+    label: 'Fail',
+    Icon: XCircle,
+  },
+};
+
+function FeasibilitySectionCard({ section }: { section: FeasibilitySection }) {
+  const style = VERDICT_STYLES[section.verdict];
+  const Icon = style.Icon;
+
+  return (
+    <div
+      className={clsx(
+        'rounded-lg border-2 p-4 text-left',
+        style.border,
+        style.bg
+      )}
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+        <h3 className="text-lg font-bold text-gray-900">{section.title}</h3>
+        <span
+          className={clsx(
+            'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-sm font-semibold border',
+            style.badge
+          )}
+        >
+          <Icon size={16} />
+          {style.label}
+        </span>
+      </div>
+      <p className="text-base font-medium text-gray-800 mb-3">{section.summary}</p>
+      <ul className="space-y-1.5 text-sm text-gray-700 leading-relaxed list-none">
+        {section.details.map((detail, i) => (
+          <li
+            key={i}
+            className={detail.startsWith('•') ? 'pl-1' : 'pl-5 relative before:content-["•"] before:absolute before:left-0'}
+          >
+            {detail.startsWith('•') ? detail.slice(2) : detail}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 export const AdminView: React.FC = () => {
   const [communityData, setCommunityData] = useState<CommunityResult | null>(null);
   const [developerData, setDeveloperData] = useState<DeveloperResult | null>(null);
@@ -159,127 +473,10 @@ export const AdminView: React.FC = () => {
     );
   }, [communityData, developerData]);
 
-  const getResult = () => {
+  const result = useMemo(() => {
     if (!communityData || !developerData) return null;
-
-    let status: 'optimal' | 'suboptimal' | 'infeasible' = 'optimal';
-    const messages: string[] = [];
-
-    if (sitingConflicts.length > 0) {
-      status = 'infeasible';
-      messages.push(
-        `CRITICAL: ${sitingConflicts.length} industrial facility placement(s) overlap community no-go zone(s). See map below.`
-      );
-    }
-
-    const zoneCount = communityData.consensusAreaIds.length;
-    const expectedMax = getMaxNoBuildZonesForCommunityWinner(communityData.winnerId);
-    const noGoCheck = validateNoGoZoneFeasibility(
-      communityData.winnerId,
-      zoneCount,
-      communityData.maxNoGoZones ?? undefined
-    );
-
-    if (communityData.noGoZoneCount !== zoneCount) {
-      status = 'infeasible';
-      messages.push(
-        `CRITICAL: CSV noGoZoneCount (${communityData.noGoZoneCount}) does not match selected zones (${zoneCount}).`
-      );
-    } else if (!noGoCheck.ok) {
-      status = 'infeasible';
-      messages.push(`CRITICAL: No-go feasibility — ${noGoCheck.message}`);
-    } else {
-      messages.push(
-        `No-go Check: PASS. ${zoneCount} zone(s) for ${SIZE_LABELS[communityData.winnerId] ?? communityData.winnerId} mine (max ${expectedMax} allowed).`
-      );
-    }
-
-    const devMaxNoGo = getMaxNoBuildZonesForMineSizeKm2(developerData.size_km2);
-    if (zoneCount > devMaxNoGo) {
-      status = 'infeasible';
-      messages.push(
-        `CRITICAL: Community selected ${zoneCount} no-go zone(s), but developer mine (${developerData.size_km2} km²) allows at most ${devMaxNoGo}.`
-      );
-    } else if (zoneCount > 0) {
-      messages.push(
-        `Cross-team no-go: ${zoneCount} community zone(s) fit within developer mine limit (${devMaxNoGo} max at ${developerData.size_km2} km²).`
-      );
-    }
-
-    const hasWaterBenefit = communityData.selectedBenefitIds.some(id =>
-      ['canoe', 'irrigation'].includes(id)
-    );
-    if (hasWaterBenefit) {
-      if (developerData.final_water <= 800000) {
-        messages.push(
-          `Water Check: PASS. Community needs water, Mining usage (${(developerData.final_water / 1000).toFixed(0)}k) is within limit.`
-        );
-      } else {
-        status = 'infeasible';
-        messages.push(
-          `CRITICAL: Community requires water, but Mining consumes ${(developerData.final_water / 1000).toFixed(0)}k m³ (Limit: 800k).`
-        );
-      }
-    }
-
-    const hasWasteBenefit = communityData.selectedBenefitIds.some(id =>
-      ['park', 'energy'].includes(id)
-    );
-    if (status !== 'infeasible' && hasWasteBenefit) {
-      if (developerData.final_waste <= 5000000) {
-        messages.push(
-          `Waste Check: PASS. Community needs clean land, Waste (${(developerData.final_waste / 1000000).toFixed(1)}M) is within limit.`
-        );
-      } else {
-        status = 'infeasible';
-        messages.push(
-          `CRITICAL: Community requires land, but Mining generates ${(developerData.final_waste / 1000000).toFixed(1)}M tons waste (Limit: 5M).`
-        );
-      }
-    }
-
-    if (status !== 'infeasible') {
-      const devSizeId = getDevSizeId(developerData.size_km2);
-      const commIndex = SIZE_INDICES[communityData.winnerId];
-      const devIndex = SIZE_INDICES[devSizeId];
-      const safeDevIndex = devIndex ?? 99;
-      const gap = Math.abs(safeDevIndex - commIndex);
-
-      if (gap === 0) {
-        messages.push(`Size Match: Perfect! Both targeted ~${SIZE_LABELS[communityData.winnerId]}.`);
-      } else if (gap <= 2) {
-        if (status === 'optimal') status = 'suboptimal';
-        messages.push(`Size Mismatch: Gap of ${gap} steps.`);
-      } else {
-        status = 'infeasible';
-        messages.push(`Size Conflict: Gap too large.`);
-      }
-    }
-
-    if (status !== 'infeasible') {
-      const unfundedBenefits = communityData.selectedBenefitIds.filter(
-        id => !developerData.selectedBenefitIds.includes(id)
-      );
-      if (unfundedBenefits.length === 0) {
-        messages.push(`Benefits Check: PASS. All requested benefits funded.`);
-      } else {
-        status = 'suboptimal';
-        messages.push(
-          `Benefits Warning: Developer did not fund ${unfundedBenefits.length} requested items.`
-        );
-      }
-    }
-
-    if (communityData.consensusAreaIds.length > 0) {
-      messages.push(
-        `No-go zones: ${communityData.consensusAreaIds.join(', ')}. Industrial sites placed: ${developerData.industrialPlacements.length}.`
-      );
-    }
-
-    return { status, messages };
-  };
-
-  const result = getResult();
+    return buildFeasibilityAnalysis(communityData, developerData, sitingConflicts);
+  }, [communityData, developerData, sitingConflicts]);
 
   const devBudget = developerData ? developerData.total_budget : null;
   const highlightBenefitIds = communityData?.selectedBenefitIds ?? [];
@@ -398,7 +595,7 @@ export const AdminView: React.FC = () => {
       {result && (
         <div
           className={clsx(
-            'p-8 rounded-xl border-4 text-center animate-in fade-in zoom-in duration-500',
+            'p-8 rounded-xl border-4 animate-in fade-in zoom-in duration-500',
             result.status === 'optimal'
               ? 'bg-green-100 border-green-500 text-green-900'
               : result.status === 'suboptimal'
@@ -406,26 +603,33 @@ export const AdminView: React.FC = () => {
                 : 'bg-red-100 border-red-500 text-red-900'
           )}
         >
-          <div className="flex justify-center mb-4">
-            {result.status === 'optimal' && <CheckCircle size={64} />}
-            {result.status === 'suboptimal' && <AlertTriangle size={64} />}
-            {result.status === 'infeasible' && <XCircle size={64} />}
+          <div className="flex flex-col items-center text-center mb-6">
+            <div className="flex justify-center mb-4">
+              {result.status === 'optimal' && <CheckCircle size={64} />}
+              {result.status === 'suboptimal' && <AlertTriangle size={64} />}
+              {result.status === 'infeasible' && <XCircle size={64} />}
+            </div>
+
+            <h1 className="text-4xl font-extrabold uppercase mb-2 tracking-widest">
+              {result.status === 'optimal'
+                ? 'Optimal Solution'
+                : result.status === 'suboptimal'
+                  ? 'Suboptimal / Warning'
+                  : 'Not Feasible'}
+            </h1>
+            <p className="text-lg font-medium max-w-2xl">
+              {result.status === 'optimal'
+                ? 'All three checks passed: mine size aligns, environmental and benefit requirements are met, and facilities avoid no-go zones.'
+                : result.status === 'suboptimal'
+                  ? 'The deal could work, but at least one check raised a warning — review the sections below.'
+                  : 'At least one check failed — this submission cannot be accepted as feasible.'}
+            </p>
           </div>
 
-          <h1 className="text-4xl font-extrabold uppercase mb-4 tracking-widest">
-            {result.status === 'optimal'
-              ? 'Optimal Solution'
-              : result.status === 'suboptimal'
-                ? 'Suboptimal / Warning'
-                : 'Not Feasible'}
-          </h1>
-
-          <div className="flex flex-col gap-2 items-center">
-            {result.messages.map((msg, i) => (
-              <p key={i} className="text-lg font-medium">
-                {msg}
-              </p>
-            ))}
+          <div className="grid gap-4 md:grid-cols-1 lg:grid-cols-1 max-w-4xl mx-auto">
+            <FeasibilitySectionCard section={result.sections.sizeAlignment} />
+            <FeasibilitySectionCard section={result.sections.environmentalBenefits} />
+            <FeasibilitySectionCard section={result.sections.mapSiting} />
           </div>
         </div>
       )}

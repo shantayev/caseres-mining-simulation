@@ -52,3 +52,15 @@ Overlays are defined in `src/components/map/noBuildZones.ts` and rendered by `No
 Selected zone IDs are exported pipe-separated in `consensusAreaId`, e.g. `mountain|ore_body|aquifer`.
 
 Admin parses both `mountain` and `ore_body` for overlap checks with developer facility placements.
+
+---
+
+## 5. Admin overlap map
+
+When both CSVs are uploaded on the Admin view (PIN `5555`), **AdminNegotiationMap** displays:
+
+- Community no-go zones (red borders; ore body dashed)
+- Developer facility markers from `industrial_placements`
+- **Amber rings** on facilities that fall inside a no-go zone
+
+Conflict details appear in the map sidebar and in **Section 3** of the feasibility panel. See [admin-feasibility.md](admin-feasibility.md).

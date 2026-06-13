@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "node -e \"console.log('\\n⏳  Starting dev server…\\n    First launch can take 30–60s on Desktop/iCloud — wait for the Local URL below.\\n')\" && vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview"

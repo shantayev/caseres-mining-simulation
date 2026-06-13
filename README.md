@@ -12,9 +12,10 @@ To ensure role separation, each interface is protected by a PIN code.
 
 | Role | PIN | Description |
 |---|---|---|
-| **Community Group** | *(Provided by Admin)* | Selects mine size preference, "Areas to Avoid", and "Community Benefits". |
-| **Mining Developer** | *(Provided by Admin)* | Configures mine capacity/size and allocates R&D budget for environmental mitigation. |
-| **Administrator** | *(Provided by Admin)* | Uploads results from both groups to assess feasibility and conflicts. |
+| **Community Group** | `1234` | Selects mine size preference, no-go zones, and community benefits. |
+| **Mining Developer** | `5678` | Configures mine size/capacity, mitigation budget, and facility siting. |
+| **Joint Negotiation** | `9999` | Combined community + developer view for live negotiation. |
+| **Administrator** | `5555` | Uploads both CSVs to assess feasibility, map conflicts, and benefit fit. |
 
 > **How to Change PINs:**
 > 1. Open `src/App.tsx`.
@@ -40,18 +41,25 @@ To ensure role separation, each interface is protected by a PIN code.
     *   *Math*: $Value_{final} = Baseline \times (0.2 + 0.8 \times e^{-0.5 \times Budget})$.
 *   **Output**: Downloads `mining_simulation_results.csv`.
 
-### 3. Administrator (`5555`)
-*   **Action**: Upload both CSV files.
-*   **Logic Check**:
-    1.  **Water Constraint**: If Community wants *Canoe/Irrigation*, Mining Water must be **$\le$ 800,000 m³**.
-    2.  **Waste Constraint**: If Community wants *Park/Energy*, Mining Waste must be **$\le$ 5,000,000 tons**.
-    3.  **Size Consensus**: Checks if both parties aimed for a similar Mine Size (Gap $\le$ 2 steps).
-    4.  **Benefit Funding**: Verifies if Developer budget covers all requested Community benefits.
+### 3. Joint Negotiation (`9999`)
+*   **Goal**: Negotiate in a single session with live utility chart and shared controls.
+*   **Features**: Community benefit selection, developer mitigation sliders, utility–cost chart with lever weights.
+*   **Output**: Same CSV exports as the separate Community and Developer views.
+
+### 4. Administrator (`5555`)
+*   **Action**: Upload both CSV files (community + developer).
+*   **Feasibility panel** (three sections, each Pass / Warning / Fail):
+    1.  **Mine size & no-go limits** — Size alignment between community winner and developer mine; no-go zone counts vs mine-size rules.
+    2.  **Environmental & community benefits** — Water (≤ 800k m³ if canoe/irrigation), waste (≤ 5M tons if park/energy), and whether all requested benefits were funded.
+    3.  **Map siting** — Whether industrial facilities overlap community no-go zones (see overlap map).
 *   **Negotiation Dashboard**:
-    *   **Scatter Plot**: Visualizes all 41 possible Community Benefit combinations (Cost vs Utility).
-    *   **Community Choice**: Marks the specific combination chosen by the community (Red Star).
-    *   **Developer Budget**: Displays the Miner's R&D budget limit (Green Dashed Line).
-*   **Result**: Displays **Optimal** (Green), **Suboptimal** (Yellow), or **Infeasible** (Red).
+    *   **Scatter Plot**: All **31** non-empty community benefit bundles (cost vs utility).
+    *   **Community Choice**: Current selection marked with a **black ring**; dot colors show utility percentile (red / orange / green).
+    *   **Developer Budget**: Green dashed vertical line.
+    *   **Overlap Map**: Red borders = no-go zones; amber rings = facility conflicts.
+*   **Result**: **Optimal** (green), **Suboptimal** (yellow), or **Not Feasible** (red).
+
+See **[Admin feasibility analysis](docs/admin-feasibility.md)** for full rules.
 
 ---
 
@@ -59,6 +67,7 @@ To ensure role separation, each interface is protected by a PIN code.
 
 ### Documentation
 
+- **[Admin feasibility analysis](docs/admin-feasibility.md)** — three-section feasibility panel, map siting conflicts, overall verdict rules (PIN 5555).
 - **[Community benefit utility calculation](docs/utility-calculation.md)** — coefficients, lever weights, formulas, hover tooltips, and chart interpretation (Admin & Joint).
 - **[Regional map & no-go zones](docs/regional-map-no-go-zones.md)** — five selectable regions, bordered overlays, mine-size limits.
 - **[Industrial facility siting rules](docs/facility-siting-rules.md)** — extraction, refining, processing, and manufacturing placement rules (Developer view).
@@ -83,8 +92,9 @@ The site is hosted on **Vercel** and connected to the GitHub repository.
 3.  Vercel will automatically detect the push and redeploy the site within 1-2 minutes.
 
 ### Troubleshooting
-*   **"Infeasible" Result?** The Developer likely needs to allocate more budget to the specific constraint (Water or Waste) requested by the Community benefits.
-*   **CSV Error?** Ensure users do not rename or modify the CSV files before uploading.
+*   **"Not Feasible" result?** Check all three feasibility sections — water/waste limits, mine size gap, no-go zone counts, unfunded benefits, or facility–no-go map conflicts.
+*   **`npm run dev` slow or no URL?** First launch on Desktop/iCloud can take 30–60s; wait for `Local: http://127.0.0.1:5173/`. See vite config for startup hints.
+*   **CSV error?** Ensure users do not rename or modify the CSV files before uploading.
 
 ---
 

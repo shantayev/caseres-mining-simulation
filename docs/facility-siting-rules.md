@@ -72,6 +72,18 @@ When **Facility** is **Processing** or **Advanced Manufacturing**:
 
 ---
 
+## 8. Admin validation
+
+After export, the Administrator upload checks facility coordinates against community no-go zones:
+
+- Developer CSV field: `industrial_placements` (type + x/y percent)
+- Overlap detection: `findIndustrialNoBuildConflicts` in `src/data/mapOverlap.ts`
+- Visualized on **AdminNegotiationMap**; failures block feasibility (Section 3)
+
+See [admin-feasibility.md](admin-feasibility.md).
+
+---
+
 ## Implementation
 
 Logic lives in `src/data/industrialPlacementRules.ts`, enforced in `DraggableRegionalMap.tsx` and validated on export in `useMitigationBudgetV2.ts`.
