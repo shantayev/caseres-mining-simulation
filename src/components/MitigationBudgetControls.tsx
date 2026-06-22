@@ -189,7 +189,7 @@ export const MitigationBudgetControls: React.FC<MitigationBudgetControlsProps> =
       </div>
 
       <div className="bg-blue-50 p-4 rounded-lg border border-blue-100 flex flex-col items-center justify-center text-center shrink-0">
-        <div className="text-xs font-bold text-blue-800 uppercase tracking-wide">Total Mitigation Budget</div>
+        <div className="text-xs font-bold text-blue-800 uppercase tracking-wide">Potential Investment</div>
         <div className="text-2xl font-extrabold text-blue-900 flex items-center gap-1">
           <DollarSign size={20} />
           {formatNumber(b.totalBudget)}
@@ -209,7 +209,7 @@ export const MitigationBudgetControls: React.FC<MitigationBudgetControlsProps> =
         )}
         <div
           className={clsx(
-            'text-xs font-bold mt-1 px-2 py-0.5 rounded-full',
+            'text-sm font-bold mt-1.5 px-3 py-1 rounded-full',
             b.budgetOverrun
               ? 'bg-red-100 text-red-800'
               : b.unassignedBudget > 0

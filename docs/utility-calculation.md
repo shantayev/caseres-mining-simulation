@@ -24,8 +24,8 @@ Each benefit has a fixed **base utility** (u) and **cost** (c). These are consta
 
 | Benefit ID   | Label (short)              | Base utility (u) | Cost (USD)   |
 |-------------|----------------------------|------------------|--------------|
-| research    | Research facility          | **0.33**         | $5,000,000   |
-| energy      | Energy storage             | **0.27**         | $3,000,000   |
+| research    | Advanced Manufacturing Workforce Training | **0.33**         | $5,000,000   |
+| energy      | Energy Storage Research Program           | **0.27**         | $3,000,000   |
 | canoe       | Underground canoe          | **0.20**         | $2,500,000   |
 | irrigation  | Irrigation upgrade         | **0.13**         | $900,000     |
 | park        | Park / forestry            | **0.07**         | $700,000     |
