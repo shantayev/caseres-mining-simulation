@@ -15,7 +15,7 @@ export const NO_BUILD_ZONE_RECTS: NoBuildZoneRect[] = [
   { id: 'ore_body', top: 12, left: 38, width: 24, height: 17 },
   { id: 'oldtown', top: 42, left: 34, width: 28, height: 24 },
   { id: 'aquifer', top: 58, left: 0, width: 55, height: 42 },
-  { id: 'campus', top: 52, left: 62, width: 38, height: 38 },
+  { id: 'agriculture', top: 52, left: 62, width: 38, height: 38 },
 ];
 
 export function isPointInZoneRect(

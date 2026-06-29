@@ -8,6 +8,7 @@ import {
   getMaxNoBuildZonesForCommunityWinner,
   getMaxNoBuildZonesForMineSizeKm2,
   getNoBuildAreaLabel,
+  normalizeNoBuildId,
   validateNoGoZoneFeasibility,
 } from '../data/noBuildAreas';
 import { getCommunityBenefit } from '../data/communityBenefits';
@@ -56,20 +57,12 @@ const SIZE_INDICES: Record<string, number> = {
   oppose: 5,
 };
 
-const VALID_NO_BUILD_IDS = new Set<SelectableNoBuildId>([
-  'mountain',
-  'ore_body',
-  'oldtown',
-  'aquifer',
-  'campus',
-]);
-
 function parseNoBuildIds(raw: string): SelectableNoBuildId[] {
   if (!raw || raw === 'none') return [];
   return raw
     .split('|')
-    .map(s => s.trim())
-    .filter((id): id is SelectableNoBuildId => VALID_NO_BUILD_IDS.has(id as SelectableNoBuildId));
+    .map(s => normalizeNoBuildId(s))
+    .filter((id): id is SelectableNoBuildId => id !== null);
 }
 
 const parseCSV = (text: string, type: 'community' | 'developer'): CommunityResult | DeveloperResult | null => {

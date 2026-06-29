@@ -16,15 +16,15 @@ export const CAPACITIES = [
 export type MineSize = (typeof MINE_SIZES)[number];
 export type Capacity = (typeof CAPACITIES)[number];
 
-export const ALPHA_W = 0.2;
-export const ALPHA_S = 0.2;
+export const ALPHA_W = 0.05;
+export const ALPHA_S = 0.05;
 export const K_W = 0.5;
 export const K_S = 0.5;
 
 export const MITIGATION_SPEND_MIN_USD = 300_000;
 export const MITIGATION_STEP_USD = 2_000_000;
-export const WATER_SPEND_MAX_USD = MITIGATION_SPEND_MIN_USD + 3 * MITIGATION_STEP_USD;
-export const WASTE_SPEND_MAX_USD = MITIGATION_SPEND_MIN_USD + 4 * MITIGATION_STEP_USD;
+export const WATER_SPEND_MAX_USD = MITIGATION_SPEND_MIN_USD + 5 * MITIGATION_STEP_USD;
+export const WASTE_SPEND_MAX_USD = MITIGATION_SPEND_MIN_USD + 6 * MITIGATION_STEP_USD;
 export const AIR_SPEND_MAX_USD = 6_000_000;
 export const BASELINE_WATER_WASTE_MITIGATION_USD = MITIGATION_SPEND_MIN_USD * 2;
 

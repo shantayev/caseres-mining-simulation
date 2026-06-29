@@ -1,11 +1,14 @@
 import React from 'react';
 import { MitigationBudgetControls } from '../MitigationBudgetControls';
+import type { JointExportExtras } from '../../hooks/useMitigationBudgetV2';
 import type { MineSize, Capacity, AirTierId } from '../../data/mitigationConstants';
+import type { PlacedIndustrialSymbol } from '../map/mapSymbols';
 
 export interface JointDeveloperPanelProps {
   selectedBenefits: string[];
   onToggleBenefit: (id: string) => void;
   onScenarioUnlock?: () => void;
+  placedIndustrial?: PlacedIndustrialSymbol[];
   onMetricsChange?: (m: {
     totalBudget: number;
     selectedBenefits: string[];
@@ -20,6 +23,7 @@ export interface JointDeveloperPanelProps {
     selectedFacilityId: AirTierId;
     scenarioLocked: boolean;
   }) => void;
+  onRegisterExport?: (exportFn: (jointExtras?: JointExportExtras) => void) => void;
 }
 
 /** Joint developer controls — same two-step budget flow as DeveloperView. */
@@ -27,8 +31,10 @@ export const JointDeveloperPanel: React.FC<JointDeveloperPanelProps> = ({
   selectedBenefits,
   onToggleBenefit,
   onScenarioUnlock,
+  placedIndustrial = [],
   onMetricsChange,
   onScenarioStateChange,
+  onRegisterExport,
 }) => (
   <div className="flex-1 flex flex-col min-h-0 overflow-hidden relative font-sans text-gray-900">
     <div className="flex-1 bg-white rounded-xl shadow-lg border border-gray-200 p-4 flex flex-col gap-4 overflow-y-auto min-h-0">
@@ -36,8 +42,10 @@ export const JointDeveloperPanel: React.FC<JointDeveloperPanelProps> = ({
         selectedBenefits={selectedBenefits}
         onToggleBenefit={onToggleBenefit}
         onScenarioUnlock={onScenarioUnlock}
+        placedIndustrial={placedIndustrial}
         onMetricsChange={onMetricsChange}
         onScenarioStateChange={onScenarioStateChange}
+        onRegisterExport={onRegisterExport}
         showSubmitButton={false}
       />
     </div>

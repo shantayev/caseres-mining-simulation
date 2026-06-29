@@ -19,7 +19,7 @@ const ZONE_SHAPE: Record<
   mountain: { rounded: 'rounded-[2rem]', borderStyle: 'solid' },
   oldtown: { rounded: 'rounded-[2rem]', borderStyle: 'solid' },
   aquifer: { rounded: 'rounded-[2rem]', borderStyle: 'solid' },
-  campus: { rounded: 'rounded-[2rem]', borderStyle: 'solid' },
+  agriculture: { rounded: 'rounded-[2rem]', borderStyle: 'solid' },
 };
 
 /** Bordered overlays aligned to regional-map.png (percent of map box). */

@@ -12,7 +12,7 @@
 | `ore_body` | Ore Body |
 | `oldtown` | Old Town |
 | `aquifer` | Aquifer Systems |
-| `campus` | University Campus |
+| `agriculture` | Agriculture Lands |
 
 Mountain Trails and Ore Body are **separate** selections (not merged).
 
