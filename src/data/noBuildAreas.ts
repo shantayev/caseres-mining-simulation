@@ -38,7 +38,7 @@ export const NO_BUILD_AREAS: NoBuildAreaDef[] = [
   {
     id: 'agriculture',
     label: 'Agriculture Lands',
-    description: 'Exclude agriculture lands from mining.',
+    description: 'Exclude agriculture lands on both sides of Mountain Trails from mining.',
   },
 ];
 

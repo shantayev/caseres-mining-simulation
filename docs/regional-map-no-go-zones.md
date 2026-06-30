@@ -31,6 +31,7 @@ Overlays are defined in `src/components/map/noBuildZones.ts` and rendered by `No
 
 - **Ore Body** — compact dashed-border box on the gray dotted ore outline (upper center); does not overlap the mountain-trails overlays.
 - **Mountain Trails** — north-center band directly above the ore body (not the side agricultural fields).
+- **Agriculture Lands** — two patches on the **west and east** of Mountain Trails (upper map), matching the labeled agricultural fields on the regional map. This is **not** the former University Campus area in the southeast.
 - **Old Town** — centered on the Old Town sign and built-up cluster (middle of the map).
 
 ---
