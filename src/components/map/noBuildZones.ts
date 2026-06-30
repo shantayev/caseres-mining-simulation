@@ -16,9 +16,9 @@ export const NO_BUILD_ZONE_RECTS: NoBuildZoneRect[] = [
   { id: 'oldtown', top: 42, left: 34, width: 28, height: 24 },
   { id: 'aquifer', top: 58, left: 0, width: 55, height: 42 },
   /** West agricultural fields flanking Mountain Trails (not the former campus area). */
-  { id: 'agriculture', top: 2, left: 3, width: 25, height: 14 },
+  { id: 'agriculture', top: 2, left: 3, width: 25, height: 24 },
   /** East agricultural fields flanking Mountain Trails. */
-  { id: 'agriculture', top: 2, left: 72, width: 25, height: 14 },
+  { id: 'agriculture', top: 2, left: 72, width: 25, height: 24 },
 ];
 
 export function isPointInZoneRect(
