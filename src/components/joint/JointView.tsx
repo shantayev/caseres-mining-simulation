@@ -1,4 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
+import confetti from 'canvas-confetti';
+import { Download } from 'lucide-react';
 import {
   JointNoBuildToolbar,
   type NoBuildAreaId,
@@ -13,7 +15,35 @@ import {
   getMaxNoBuildZonesForMineSizeKm2,
   canToggleNoBuildZone,
 } from '../../data/noBuildAreas';
-import type { MineSize } from '../../data/mitigationConstants';
+import type { JointExportExtras } from '../../hooks/useMitigationBudgetV2';
+import type { MineSize, Capacity, AirTierId } from '../../data/mitigationConstants';
+import type { PlacedIndustrialSymbol } from '../map/mapSymbols';
+
+function fireSubmitCelebration() {
+  const duration = 2500;
+  const end = Date.now() + duration;
+  const frame = () => {
+    confetti({
+      particleCount: 4,
+      angle: 60,
+      spread: 55,
+      origin: { x: 0, y: 0.65 },
+    });
+    confetti({
+      particleCount: 4,
+      angle: 120,
+      spread: 55,
+      origin: { x: 1, y: 0.65 },
+    });
+    if (Date.now() < end) requestAnimationFrame(frame);
+  };
+  frame();
+  confetti({
+    particleCount: 120,
+    spread: 90,
+    origin: { y: 0.55 },
+  });
+}
 
 /**
  * Joint negotiation: no-build toolbar, utility chart (left) + draggable regional map (right), developer controls below.
@@ -28,7 +58,11 @@ export const JointView: React.FC = () => {
   const [benefitPlacements, setBenefitPlacements] = useState<
     Partial<Record<CommunityBenefitId, BenefitPlacement>>
   >({});
+  const [placedIndustrial, setPlacedIndustrial] = useState<PlacedIndustrialSymbol[]>([]);
   const [selectedSize, setSelectedSize] = useState<MineSize | null>(null);
+  const [scenarioLocked, setScenarioLocked] = useState(false);
+
+  const exportFnRef = useRef<((jointExtras?: JointExportExtras) => void) | null>(null);
 
   const maxNoBuildZones = selectedSize
     ? getMaxNoBuildZonesForMineSizeKm2(selectedSize.value)
@@ -65,11 +99,30 @@ export const JointView: React.FC = () => {
   );
 
   const handleScenarioStateChange = useCallback(
-    (s: { selectedSize: MineSize }) => {
+    (s: {
+      selectedSize: MineSize;
+      selectedCapacity: Capacity;
+      selectedFacilityId: AirTierId;
+      scenarioLocked: boolean;
+    }) => {
       setSelectedSize(s.selectedSize);
+      setScenarioLocked(s.scenarioLocked);
     },
     []
   );
+
+  const handleRegisterExport = useCallback((exportFn: (jointExtras?: JointExportExtras) => void) => {
+    exportFnRef.current = exportFn;
+  }, []);
+
+  const handleJointSubmit = useCallback(() => {
+    if (!exportFnRef.current) return;
+    exportFnRef.current({
+      noBuildZoneIds: selectedNoBuildIds,
+      benefitPlacements,
+    });
+    fireSubmitCelebration();
+  }, [selectedNoBuildIds, benefitPlacements]);
 
   const toggleBenefit = useCallback(
     (id: string) => {
@@ -123,6 +176,7 @@ export const JointView: React.FC = () => {
   const handleScenarioUnlock = useCallback(() => {
     setSelectedBenefits([]);
     setBenefitPlacements({});
+    setPlacedIndustrial([]);
   }, []);
 
   const toggleNoBuildArea = useCallback(
@@ -186,20 +240,33 @@ export const JointView: React.FC = () => {
             selectedBenefits={selectedBenefits}
             benefitPlacements={benefitPlacements}
             unassignedBudget={unassignedBudget}
+            placedIndustrial={placedIndustrial}
+            onPlacedIndustrialChange={setPlacedIndustrial}
             onBenefitPlace={handleBenefitPlace}
             onBenefitRemove={handleBenefitRemove}
           />
         </div>
       </div>
 
-      <div className="min-h-[320px] shrink-0 flex flex-col">
+      <div className="min-h-[320px] shrink-0 flex flex-col gap-3">
         <JointDeveloperPanel
           selectedBenefits={selectedBenefits}
           onToggleBenefit={toggleBenefit}
           onScenarioUnlock={handleScenarioUnlock}
+          placedIndustrial={placedIndustrial}
           onMetricsChange={handleMetricsChange}
           onScenarioStateChange={handleScenarioStateChange}
+          onRegisterExport={handleRegisterExport}
         />
+        <button
+          type="button"
+          onClick={handleJointSubmit}
+          disabled={!scenarioLocked}
+          className="shrink-0 bg-gray-900 text-white px-4 py-3 rounded-lg font-bold shadow hover:bg-black disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm"
+        >
+          <Download size={16} />
+          Submit Negotiation
+        </button>
       </div>
     </div>
   );

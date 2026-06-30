@@ -12,7 +12,7 @@
 | `ore_body` | Ore Body |
 | `oldtown` | Old Town |
 | `aquifer` | Aquifer Systems |
-| `campus` | University Campus |
+| `agriculture` | Agriculture Lands |
 
 Mountain Trails and Ore Body are **separate** selections (not merged).
 
@@ -31,6 +31,14 @@ Overlays are defined in `src/components/map/noBuildZones.ts` and rendered by `No
 
 - **Ore Body** — compact dashed-border box on the gray dotted ore outline (upper center); does not overlap the mountain-trails overlays.
 - **Mountain Trails** — north-center band directly above the ore body (not the side agricultural fields).
+- **Agriculture Lands** — two patches on the **west and east** of Mountain Trails (upper map), matching the labeled agricultural fields on the regional map. This is **not** the former University Campus area in the southeast. Overlay bounds (% of map box, from `noBuildZones.ts`):
+
+  | Patch | `top` | `left` | `width` | `height` |
+  |-------|-------|--------|---------|----------|
+  | West  | 2     | 2      | 28      | 36       |
+  | East  | 2     | 70     | 28      | 36       |
+
+  Both rectangles share `id: 'agriculture'`; either hit counts as Agriculture Lands for overlap and export.
 - **Old Town** — centered on the Old Town sign and built-up cluster (middle of the map).
 
 ---
@@ -47,9 +55,13 @@ Overlays are defined in `src/components/map/noBuildZones.ts` and rendered by `No
 
 ---
 
-## 4. CSV export (community)
+## 4. CSV export (community & joint)
 
-Selected zone IDs are exported pipe-separated in `consensusAreaId`, e.g. `mountain|ore_body|aquifer`.
+Selected zone IDs are exported pipe-separated, e.g. `mountain|ore_body|agriculture`.
+
+**Legacy alias:** Admin CSV parsing accepts `campus` as an alias for `agriculture` (former University Campus label).
+
+Joint submit adds the same no-build column to `joint_negotiation_results.csv` along with benefit map placements.
 
 Admin parses both `mountain` and `ore_body` for overlap checks with developer facility placements.
 

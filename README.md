@@ -30,7 +30,8 @@ To ensure role separation, each interface is protected by a PIN code.
 ### 1. Community Group (`1234`)
 *   **Goal**: Maximize unlocked benefits while protecting critical areas.
 *   **Matrix**: Vote (0-5) on preferences for 5 Mine Size Scenarios.
-*   **Benefits**: Larger mines unlock more benefits (Canoe, Irrigation, etc.).
+*   **Benefits**: Larger mines unlock more benefits (Canoe, Irrigation, etc.). Costs are **not** shown to social teams — only how many benefits are selected.
+*   **No-go zones**: Five regions including Agriculture Lands (see [regional-map-no-go-zones.md](docs/regional-map-no-go-zones.md)).
 *   **Output**: Downloads `community_results.csv`.
 
 ### 2. Mining Developer (`5678`)
@@ -43,8 +44,10 @@ To ensure role separation, each interface is protected by a PIN code.
 
 ### 3. Joint Negotiation (`9999`)
 *   **Goal**: Negotiate in a single session with live utility chart and shared controls.
-*   **Features**: Community benefit selection, developer mitigation sliders, utility–cost chart with lever weights.
-*   **Output**: Same CSV exports as the separate Community and Developer views.
+*   **Features**: No-go zone toolbar, draggable regional map (industrial + community benefit symbols), community benefit selection, developer mitigation sliders (water / waste / air), utility–cost chart with **live lever weights** (see [utility-calculation.md](docs/utility-calculation.md)).
+*   **Community UI**: Benefit costs are hidden from the social-teams view; only benefit count is shown.
+*   **Submit**: **Submit Negotiation** (enabled after scenario lock) downloads `joint_negotiation_results.csv` — same mitigation fields as the developer export, plus `no_build_zones` and `benefit_placements` columns. A confetti celebration runs via the [`canvas-confetti`](https://www.npmjs.com/package/canvas-confetti) library.
+*   **No-go zones**: Five selectable regions including **Agriculture Lands** (west + east of Mountain Trails; legacy CSV alias `campus` → `agriculture`). See [regional-map-no-go-zones.md](docs/regional-map-no-go-zones.md).
 
 ### 4. Administrator (`5555`)
 *   **Action**: Upload both CSV files (community + developer).

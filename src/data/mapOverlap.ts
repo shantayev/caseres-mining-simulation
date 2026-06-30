@@ -8,6 +8,17 @@ export interface IndustrialPlacementRecord {
   yPct: number;
 }
 
+export function serializeBenefitPlacements(
+  placements: Partial<Record<string, { xPct: number; yPct: number }>>
+): string {
+  const entries = Object.entries(placements).filter((entry): entry is [string, { xPct: number; yPct: number }] => {
+    const [, p] = entry;
+    return p != null && Number.isFinite(p.xPct) && Number.isFinite(p.yPct);
+  });
+  if (entries.length === 0) return '';
+  return entries.map(([id, p]) => `${id}:${p.xPct.toFixed(2)},${p.yPct.toFixed(2)}`).join('|');
+}
+
 export function serializeIndustrialPlacements(symbols: PlacedIndustrialSymbol[]): string {
   if (symbols.length === 0) return '';
   return symbols.map(s => `${s.type}:${s.xPct.toFixed(2)},${s.yPct.toFixed(2)}`).join('|');

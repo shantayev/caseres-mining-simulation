@@ -72,12 +72,6 @@ const BENEFIT_DETAILS: Record<
   },
 };
 
-function formatInvestmentUsd(amount: number): string {
-  if (amount >= 1_000_000) return `$${(amount / 1_000_000).toFixed(1)}M`;
-  if (amount >= 1_000) return `$${(amount / 1_000).toFixed(0)}k`;
-  return `$${amount}`;
-}
-
 const getWinner = (votes: Record<GroupId, Record<MineSizeId, number>>) => {
   const tallies: Record<MineSizeId, number> = {
     '8km': 0,
@@ -147,15 +141,6 @@ export const CommunityView: React.FC = () => {
   const selectedBenefitIds = useMemo(
     () => benefitSlots.filter((id): id is CommunityBenefitId => id !== ''),
     [benefitSlots]
-  );
-
-  const totalCommunityInvestment = useMemo(
-    () =>
-      selectedBenefitIds.reduce(
-        (sum, id) => sum + (getCommunityBenefit(id)?.cost ?? 0),
-        0
-      ),
-    [selectedBenefitIds]
   );
 
   const prevWinnerRef = useRef<MineSizeId | null>(null);
@@ -455,13 +440,13 @@ export const CommunityView: React.FC = () => {
                 <div className="flex flex-col gap-2">
                   <div className="rounded-lg border border-green-200 bg-green-50 px-2 py-2 text-center">
                     <div className="text-[10px] font-bold text-green-800 uppercase tracking-wide">
-                      Total Community Investment Package
+                      Community Benefit Package
                     </div>
                     <div className="text-2xl font-extrabold text-green-700 leading-tight mt-0.5">
-                      {formatInvestmentUsd(totalCommunityInvestment)}
+                      {selectedBenefitIds.length} / {benefitsUnlocked || '—'}
                     </div>
                     <div className="text-[9px] text-green-700/80 mt-0.5">
-                      Sum of selected benefit costs
+                      Benefits selected for negotiation
                     </div>
                   </div>
 
