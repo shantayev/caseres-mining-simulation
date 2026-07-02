@@ -9,12 +9,14 @@ export interface NoBuildZoneRect {
   height: number;
 }
 
-/** Mountain trails sit in the north-center hills, directly above the ore-body box. */
+/** Aligned to regional-map.png (1254×1254, updated labels). */
 export const NO_BUILD_ZONE_RECTS: NoBuildZoneRect[] = [
-  { id: 'mountain', top: 2, left: 30, width: 40, height: 9 },
-  { id: 'ore_body', top: 12, left: 38, width: 24, height: 17 },
-  { id: 'oldtown', top: 42, left: 34, width: 28, height: 24 },
-  { id: 'aquifer', top: 58, left: 0, width: 55, height: 42 },
+  /** Includes baked “Mountain Trails” label in the north green band. */
+  { id: 'mountain', top: 0, left: 28, width: 44, height: 13 },
+  /** Gray ore fill only — starts below Mountain Trails text. */
+  { id: 'ore_body', top: 14, left: 34, width: 32, height: 17 },
+  { id: 'oldtown', top: 35, left: 30, width: 32, height: 27 },
+  { id: 'aquifer', top: 50, left: 0, width: 58, height: 50 },
   { id: 'campus', top: 52, left: 62, width: 38, height: 38 },
 ];
 

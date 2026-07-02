@@ -27,11 +27,12 @@ Mountain Trails and Ore Body are **separate** selections (not merged).
 
 Overlays are defined in `src/components/map/noBuildZones.ts` and rendered by `NoBuildOverlays.tsx`.
 
-**Alignment notes (regional-map.png):**
+**Alignment notes (regional-map.png, 1254×1254 updated artwork):**
 
-- **Ore Body** — compact dashed-border box on the gray dotted ore outline (upper center); does not overlap the mountain-trails overlays.
-- **Mountain Trails** — north-center band directly above the ore body (not the side agricultural fields).
-- **Old Town** — centered on the Old Town sign and built-up cluster (middle of the map).
+- **Mountain Trails** — north green band including the map label (`top` 0%, `height` 12%).
+- **Ore Body** — gray dashed ore outline below the Mountain Trails text (`top` 13%, `height` 17%).
+- **Old Town** — centered on the built-up cluster (`top` 35%, `height` 27%).
+- **Aquifer Systems** — lower-left blue zone (`top` 50%, `height` 50%).
 
 ---
 

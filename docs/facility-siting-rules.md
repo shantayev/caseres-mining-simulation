@@ -9,7 +9,7 @@ After locking the scenario, technical teams drag industrial facility icons onto 
 ## 1. When rules apply
 
 - **Lock scenario** in Configuration before placing facilities.
-- Rules run on the **Developer** map only (not Joint community-benefit map).
+- Rules apply on the **Developer** and **Joint** maps after scenario lock.
 - **Export** (`mining_simulation_results.csv`) is blocked until all required sites are placed and valid.
 
 ---

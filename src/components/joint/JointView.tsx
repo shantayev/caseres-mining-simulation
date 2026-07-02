@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import {
   JointNoBuildToolbar,
   type NoBuildAreaId,
@@ -13,7 +13,7 @@ import {
   getMaxNoBuildZonesForMineSizeKm2,
   canToggleNoBuildZone,
 } from '../../data/noBuildAreas';
-import type { MineSize } from '../../data/mitigationConstants';
+import type { MineSize, Capacity, AirTierId } from '../../data/mitigationConstants';
 
 /**
  * Joint negotiation: no-build toolbar, utility chart (left) + draggable regional map (right), developer controls below.
@@ -29,6 +29,18 @@ export const JointView: React.FC = () => {
     Partial<Record<CommunityBenefitId, BenefitPlacement>>
   >({});
   const [selectedSize, setSelectedSize] = useState<MineSize | null>(null);
+  const [selectedCapacity, setSelectedCapacity] = useState<Capacity | null>(null);
+  const [selectedFacilityId, setSelectedFacilityId] = useState<AirTierId | null>(null);
+  const [scenarioLocked, setScenarioLocked] = useState(false);
+
+  const industrialScenario = useMemo(() => {
+    if (!selectedSize || !selectedCapacity || !selectedFacilityId) return null;
+    return {
+      mineSizeKm2: selectedSize.value,
+      capacityMton: selectedCapacity.value,
+      facilityTier: selectedFacilityId,
+    };
+  }, [selectedSize, selectedCapacity, selectedFacilityId]);
 
   const maxNoBuildZones = selectedSize
     ? getMaxNoBuildZonesForMineSizeKm2(selectedSize.value)
@@ -65,8 +77,16 @@ export const JointView: React.FC = () => {
   );
 
   const handleScenarioStateChange = useCallback(
-    (s: { selectedSize: MineSize }) => {
+    (s: {
+      selectedSize: MineSize;
+      selectedCapacity: Capacity;
+      selectedFacilityId: AirTierId;
+      scenarioLocked: boolean;
+    }) => {
       setSelectedSize(s.selectedSize);
+      setSelectedCapacity(s.selectedCapacity);
+      setSelectedFacilityId(s.selectedFacilityId);
+      setScenarioLocked(s.scenarioLocked);
     },
     []
   );
@@ -188,6 +208,8 @@ export const JointView: React.FC = () => {
             unassignedBudget={unassignedBudget}
             onBenefitPlace={handleBenefitPlace}
             onBenefitRemove={handleBenefitRemove}
+            industrialScenario={industrialScenario}
+            scenarioLocked={scenarioLocked}
           />
         </div>
       </div>

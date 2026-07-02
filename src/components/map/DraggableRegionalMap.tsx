@@ -79,6 +79,7 @@ export const DraggableRegionalMap: React.FC<DraggableRegionalMapProps> = ({
   className,
 }) => {
   const isTechnical = mode === 'technical';
+  const enforceIndustrialLimits = Boolean(industrialScenario && scenarioLocked);
   const [internalIndustrial, setInternalIndustrial] = useState<PlacedIndustrialSymbol[]>([]);
   const placedIndustrial = placedIndustrialProp ?? internalIndustrial;
 
@@ -93,7 +94,7 @@ export const DraggableRegionalMap: React.FC<DraggableRegionalMapProps> = ({
   );
 
   const containerRef = useRef<HTMLDivElement>(null);
-  const [naturalSize, setNaturalSize] = useState({ w: 4, h: 3 });
+  const [naturalSize, setNaturalSize] = useState({ w: 1, h: 1 });
   const [containerSize, setContainerSize] = useState({ w: 0, h: 0 });
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [draggingCategory, setDraggingCategory] = useState<'industrial' | 'benefit' | null>(null);
@@ -155,7 +156,7 @@ export const DraggableRegionalMap: React.FC<DraggableRegionalMapProps> = ({
         }
         return;
       }
-      if (isTechnical && industrialScenario && scenarioLocked) {
+      if (enforceIndustrialLimits && industrialScenario) {
         const check = canPlaceIndustrialType(type, placedIndustrial, industrialScenario);
         if (!check.ok) {
           alert(check.message);
@@ -195,6 +196,7 @@ export const DraggableRegionalMap: React.FC<DraggableRegionalMapProps> = ({
       canPlaceAt,
       setPlacedIndustrial,
       isTechnical,
+      enforceIndustrialLimits,
       industrialScenario,
       scenarioLocked,
       placedIndustrial,
@@ -302,6 +304,14 @@ export const DraggableRegionalMap: React.FC<DraggableRegionalMapProps> = ({
 
   const placedBenefitCount = Object.keys(benefitPlacements).length;
 
+  const industrialChipEnabled = useCallback(
+    (type: IndustrialSymbolType) => {
+      if (!enforceIndustrialLimits || !industrialScenario) return true;
+      return canPlaceIndustrialType(type, placedIndustrial, industrialScenario).ok;
+    },
+    [enforceIndustrialLimits, industrialScenario, placedIndustrial]
+  );
+
   return (
     <div
       className={clsx(
@@ -326,25 +336,42 @@ export const DraggableRegionalMap: React.FC<DraggableRegionalMapProps> = ({
           Industrial chain (drag onto map):
         </span>
         <div className="flex flex-row flex-wrap gap-2">
-          {INDUSTRIAL_SYMBOLS.map(({ type, label, Icon, chipClass }) => (
+          {INDUSTRIAL_SYMBOLS.map(({ type, label, Icon, chipClass }) => {
+            const canDrag = industrialChipEnabled(type);
+            return (
             <div
               key={type}
-              draggable
+              draggable={canDrag}
               onDragStart={e => {
+                if (!canDrag) {
+                  e.preventDefault();
+                  return;
+                }
                 e.dataTransfer.setData(MAP_INDUSTRIAL_DRAG_TYPE, type);
                 e.dataTransfer.setData('text/plain', type);
                 e.dataTransfer.effectAllowed = 'copy';
               }}
               className={clsx(
-                'flex items-center gap-1.5 px-2 py-1 rounded-lg border text-[10px] font-bold cursor-grab active:cursor-grabbing shadow-sm select-none',
-                chipClass
+                'flex items-center gap-1.5 px-2 py-1 rounded-lg border text-[10px] font-bold shadow-sm select-none',
+                chipClass,
+                canDrag
+                  ? 'cursor-grab active:cursor-grabbing'
+                  : 'opacity-40 cursor-not-allowed'
               )}
-              title={`Drag ${label} to map`}
+              title={
+                canDrag
+                  ? `Drag ${label} to map`
+                  : enforceIndustrialLimits && industrialScenario
+                    ? canPlaceIndustrialType(type, placedIndustrial, industrialScenario).message ??
+                      `Cannot place ${label}`
+                    : `Drag ${label} to map`
+              }
             >
               <Icon size={14} strokeWidth={2.5} />
               {label}
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
@@ -398,7 +425,7 @@ export const DraggableRegionalMap: React.FC<DraggableRegionalMapProps> = ({
           <div
             ref={containerRef}
             className={clsx(
-              'relative w-full aspect-[4/3] mx-auto',
+              'relative w-full aspect-square mx-auto overflow-visible',
               compact ? 'max-w-full' : 'max-w-full max-h-[min(68vh,620px)]'
             )}
             onDragOver={handleMapDragOver}
@@ -530,17 +557,19 @@ export const DraggableRegionalMap: React.FC<DraggableRegionalMapProps> = ({
         <p>
           {isTechnical
             ? 'Lock scenario first, then site facilities per mine size, capacity, and facility tier.'
-            : 'Shaded zones = no-build areas — industrial symbols cannot be placed there.'}
+            : industrialScenario
+              ? 'Lock scenario first, then site facilities per mine size, capacity, and facility tier.'
+              : 'Shaded zones = no-build areas — industrial symbols cannot be placed there.'}
         </p>
-        {isTechnical && industrialScenario && scenarioLocked && (
+        {industrialScenario && scenarioLocked && (
           <p className="font-medium text-gray-700">
             Required: {formatFacilityPlacementSummary(placedIndustrial, industrialScenario)}
           </p>
         )}
-        {isTechnical && !scenarioLocked && (
+        {industrialScenario && !scenarioLocked && (
           <p className="text-amber-700">Lock scenario in Configuration before placing facilities.</p>
         )}
-        {!isTechnical && (
+        {!isTechnical && scenarioLocked && (
           <p>
             Drag industrial symbols from above or community benefits from the left; double-click or ✕
             to remove.
