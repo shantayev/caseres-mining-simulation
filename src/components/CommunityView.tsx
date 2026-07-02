@@ -143,13 +143,22 @@ export const CommunityView: React.FC = () => {
     [benefitSlots]
   );
 
-  const prevWinnerRef = useRef<MineSizeId | null>(null);
+  const prevWinnerRef = useRef<MineSizeId | null | undefined>(undefined);
   useEffect(() => {
-    if (prevWinnerRef.current !== null && prevWinnerRef.current !== winnerId) {
+    if (prevWinnerRef.current !== undefined && prevWinnerRef.current !== winnerId) {
       setSelectedNoBuildIds([]);
     }
     prevWinnerRef.current = winnerId;
   }, [winnerId]);
+
+  /** Clear or trim selections when the winning size disallows or limits zones (e.g. 8 km² → 0). */
+  useEffect(() => {
+    setSelectedNoBuildIds(prev => {
+      if (maxNoBuildZones <= 0 && prev.length > 0) return [];
+      if (prev.length > maxNoBuildZones) return prev.slice(0, maxNoBuildZones);
+      return prev;
+    });
+  }, [maxNoBuildZones]);
 
   useEffect(() => {
     setBenefitSlots(prev => {
@@ -548,7 +557,7 @@ export const CommunityView: React.FC = () => {
                         .join(', ')}
                 </span>
               </div>
-              <div className="relative w-full aspect-[4/3] bg-gray-100">
+              <div className="relative w-full aspect-square bg-gray-100">
                 <img
                   src="/regional-map.png"
                   alt="Regional map"

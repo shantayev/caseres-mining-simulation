@@ -77,7 +77,7 @@ export const AdminNegotiationMap: React.FC<AdminNegotiationMapProps> = ({
         <div className="px-3 py-2 bg-gray-50 border-b">
           <span className="text-sm font-bold text-gray-800">Siting vs no-go overlap</span>
         </div>
-        <div className="relative w-full aspect-[4/3] bg-gray-100">
+        <div className="relative w-full aspect-square bg-gray-100">
           <img
             src="/regional-map.png"
             alt="Regional map analysis"

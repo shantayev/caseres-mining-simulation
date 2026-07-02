@@ -16,6 +16,9 @@ export interface JointDeveloperPanelProps {
     allocWater: number;
     allocWaste: number;
     allocAir: number;
+    avgChainSpreadPct: number;
+    spreadPenaltyPct: number;
+    sitingPenaltyUsd: number;
   }) => void;
   onScenarioStateChange?: (s: {
     selectedSize: MineSize;

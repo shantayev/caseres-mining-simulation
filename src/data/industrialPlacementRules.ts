@@ -7,9 +7,6 @@ export interface IndustrialScenario {
   facilityTier: AirTierId;
 }
 
-/** Map % distance — processing must be within this of a refining pin. */
-export const PROCESSING_ADJACENCY_PCT = 15;
-
 const TIER_ORDER: AirTierId[] = [
   'extraction',
   'refining',
@@ -69,24 +66,10 @@ export function countByType(
   return counts;
 }
 
-function mapDistancePct(a: PlacedIndustrialSymbol, b: PlacedIndustrialSymbol): number {
+export function mapDistancePct(a: PlacedIndustrialSymbol, b: PlacedIndustrialSymbol): number {
   const dx = a.xPct - b.xPct;
   const dy = a.yPct - b.yPct;
   return Math.sqrt(dx * dx + dy * dy);
-}
-
-/** Each processing pin must be within PROCESSING_ADJACENCY_PCT of some refining pin. */
-export function allProcessingAdjacentToRefining(
-  placements: PlacedIndustrialSymbol[],
-  thresholdPct = PROCESSING_ADJACENCY_PCT
-): boolean {
-  const refining = placements.filter(p => p.type === 'refining');
-  const processing = placements.filter(p => p.type === 'processing');
-  if (processing.length === 0) return true;
-  if (refining.length === 0) return false;
-  return processing.every(proc =>
-    refining.some(ref => mapDistancePct(proc, ref) <= thresholdPct)
-  );
 }
 
 export function canPlaceIndustrialType(
@@ -139,11 +122,6 @@ export function validateIndustrialPlacements(
     if (counts.processing !== counts.refining) {
       messages.push(
         `Processing count (${counts.processing}) must match refining count (${counts.refining}).`
-      );
-    }
-    if (!allProcessingAdjacentToRefining(placements)) {
-      messages.push(
-        `Each processing facility must be within ${PROCESSING_ADJACENCY_PCT}% map distance of a refining facility.`
       );
     }
   }

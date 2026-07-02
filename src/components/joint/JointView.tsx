@@ -61,6 +61,8 @@ export const JointView: React.FC = () => {
   const [placedIndustrial, setPlacedIndustrial] = useState<PlacedIndustrialSymbol[]>([]);
   const [selectedSize, setSelectedSize] = useState<MineSize | null>(null);
   const [scenarioLocked, setScenarioLocked] = useState(false);
+  const [avgChainSpreadPct, setAvgChainSpreadPct] = useState(0);
+  const [spreadPenaltyPct, setSpreadPenaltyPct] = useState(0);
 
   const exportFnRef = useRef<((jointExtras?: JointExportExtras) => void) | null>(null);
 
@@ -85,10 +87,15 @@ export const JointView: React.FC = () => {
       allocWater: number;
       allocWaste: number;
       allocAir: number;
+      avgChainSpreadPct: number;
+      spreadPenaltyPct: number;
+      sitingPenaltyUsd: number;
     }) => {
       setChartBudget(m.totalBudget);
       setChartBenefits(m.selectedBenefits);
       setUnassignedBudget(m.unassignedBudget);
+      setAvgChainSpreadPct(m.avgChainSpreadPct);
+      setSpreadPenaltyPct(m.spreadPenaltyPct);
       setLeverAllocations({
         allocWater: m.allocWater,
         allocWaste: m.allocWaste,
@@ -244,6 +251,9 @@ export const JointView: React.FC = () => {
             onPlacedIndustrialChange={setPlacedIndustrial}
             onBenefitPlace={handleBenefitPlace}
             onBenefitRemove={handleBenefitRemove}
+            scenarioLocked={scenarioLocked}
+            avgChainSpreadPct={avgChainSpreadPct}
+            spreadPenaltyPct={spreadPenaltyPct}
           />
         </div>
       </div>
