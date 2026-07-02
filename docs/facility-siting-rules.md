@@ -43,7 +43,7 @@ Refining requirements follow **capacity** regardless of facility tier.
 When **Facility** is **Processing** or **Advanced Manufacturing**:
 
 - Place **one processing site per refining site** (same count as refining).
-- Each processing pin must be within **15%** map distance of a refining pin.
+- Processing may be placed anywhere on the map; spread from refining is discouraged via the **facility spread budget penalty** (§9), not a hard distance limit.
 
 ---
 
@@ -59,7 +59,7 @@ When **Facility** is **Processing** or **Advanced Manufacturing**:
 |---------------|------------|----------|------------|--------------|
 | Extraction | ✓ (by mine) | ✓ (by capacity) | — | — |
 | Refining | ✓ | ✓ | — | — |
-| Processing | ✓ | ✓ | ✓ (1:1 with refining, adjacent) | — |
+| Processing | ✓ | ✓ | ✓ (1:1 with refining) | — |
 | Advanced Manufacturing | ✓ | ✓ | ✓ | ✓ (1 site) |
 
 ---
@@ -68,7 +68,7 @@ When **Facility** is **Processing** or **Advanced Manufacturing**:
 
 - Footer shows progress, e.g. `extraction 1/1 · refining 2/2`.
 - Dropping over the limit shows an alert.
-- Placing processing too far from refining is blocked (when refining sites already exist).
+- Spreading facilities apart increases the **facility spread cost** on unassigned budget (§9).
 
 ---
 

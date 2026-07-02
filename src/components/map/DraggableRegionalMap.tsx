@@ -173,26 +173,6 @@ export const DraggableRegionalMap: React.FC<DraggableRegionalMapProps> = ({
         xPct: clampPct(pct.xPct),
         yPct: clampPct(pct.yPct),
       };
-      if (
-        isTechnical &&
-        type === 'processing' &&
-        industrialScenario &&
-        scenarioLocked
-      ) {
-        const refining = placedIndustrial.filter(p => p.type === 'refining');
-        if (
-          refining.length > 0 &&
-          !refining.some(
-            ref =>
-              Math.hypot(ref.xPct - newSym.xPct, ref.yPct - newSym.yPct) <= 15
-          )
-        ) {
-          alert(
-            'Processing must be placed within 15% map distance of a refining facility.'
-          );
-          return;
-        }
-      }
       setPlacedIndustrial(prev => [...prev, newSym]);
     },
     [
@@ -261,16 +241,6 @@ export const DraggableRegionalMap: React.FC<DraggableRegionalMapProps> = ({
 
     if (draggingCategory === 'industrial') {
       if (!canPlaceAt(x, y)) return;
-      const sym = placedIndustrial.find(s => s.id === draggingId);
-      if (sym?.type === 'processing' && industrialScenario && scenarioLocked) {
-        const refining = placedIndustrial.filter(p => p.type === 'refining');
-        if (
-          refining.length > 0 &&
-          !refining.some(ref => Math.hypot(ref.xPct - x, ref.yPct - y) <= 15)
-        ) {
-          return;
-        }
-      }
       setPlacedIndustrial(prev =>
         prev.map(s => (s.id === draggingId ? { ...s, xPct: x, yPct: y } : s))
       );
