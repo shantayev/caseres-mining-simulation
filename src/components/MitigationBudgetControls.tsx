@@ -240,8 +240,9 @@ export const MitigationBudgetControls: React.FC<MitigationBudgetControlsProps> =
               Facility spread cost: −{formatCurrency(b.sitingPenaltyUsd)} ({b.spreadPenaltyPct.toFixed(1)}%)
             </div>
             <p className="text-[10px] text-gray-500 mt-1 leading-snug max-w-md">
-              Spreading extraction, refining, and processing farther apart increases logistics cost and
-              reduces unassigned budget.
+              Each facility within 5% of its linked site (Ore Body → extraction → refining →
+              processing) pays no penalty; beyond that, map distance % is summed and applied to
+              unassigned budget.
             </p>
           </>
         )}

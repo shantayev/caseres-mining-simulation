@@ -108,14 +108,16 @@ export function useMitigationBudgetV2({
     [scenarioLocked, selectedBenefits]
   );
 
+  const totalAllocated = allocWater + allocWaste + allocAir + communitySpend;
+  const grossUnassigned = totalBudget - totalAllocated;
+
   const { avgChainSpreadPct, spreadPenaltyPct, sitingPenaltyUsd } = useMemo(
-    () => computeFacilitySpreadPenalty(placedIndustrial, totalBudget, scenarioLocked),
-    [placedIndustrial, totalBudget, scenarioLocked]
+    () => computeFacilitySpreadPenalty(placedIndustrial, grossUnassigned, scenarioLocked),
+    [placedIndustrial, grossUnassigned, scenarioLocked]
   );
 
-  const totalAllocated = allocWater + allocWaste + allocAir + communitySpend;
-  const unassignedBudget = totalBudget - totalAllocated - sitingPenaltyUsd;
-  const budgetOverrun = totalAllocated + sitingPenaltyUsd > totalBudget;
+  const unassignedBudget = grossUnassigned - sitingPenaltyUsd;
+  const budgetOverrun = grossUnassigned < sitingPenaltyUsd || totalAllocated > totalBudget;
 
   const W0 = selectedCapacity.water;
   const Wmin = ALPHA_W * W0;

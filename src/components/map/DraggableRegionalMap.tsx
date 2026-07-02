@@ -509,7 +509,8 @@ export const DraggableRegionalMap: React.FC<DraggableRegionalMapProps> = ({
         </p>
         {scenarioLocked && spreadPenaltyPct > 0 && (
           <p className="font-medium text-amber-800">
-            Spread: {avgChainSpreadPct.toFixed(1)}% map · −{spreadPenaltyPct.toFixed(1)}% budget
+            Siting penalty: −{spreadPenaltyPct.toFixed(1)}% of unassigned
+            {avgChainSpreadPct > 0 && ` · avg link distance ${avgChainSpreadPct.toFixed(1)}% map`}
           </p>
         )}
         {isTechnical && industrialScenario && scenarioLocked && (
