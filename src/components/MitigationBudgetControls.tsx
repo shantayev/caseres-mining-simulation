@@ -11,7 +11,7 @@ import {
   formatCurrency,
   type AirTierId,
 } from '../data/mitigationConstants';
-import { useMitigationBudgetV2 } from '../hooks/useMitigationBudgetV2';
+import { useMitigationBudgetV2, type JointExportExtras } from '../hooks/useMitigationBudgetV2';
 import type { MineSize, Capacity } from '../data/mitigationConstants';
 import type { PlacedIndustrialSymbol } from './map/mapSymbols';
 
@@ -27,6 +27,9 @@ export interface MitigationBudgetControlsProps {
     allocWater: number;
     allocWaste: number;
     allocAir: number;
+    avgChainSpreadPct: number;
+    spreadPenaltyPct: number;
+    sitingPenaltyUsd: number;
   }) => void;
   onScenarioStateChange?: (s: {
     selectedSize: MineSize;
@@ -35,6 +38,7 @@ export interface MitigationBudgetControlsProps {
     scenarioLocked: boolean;
   }) => void;
   showSubmitButton?: boolean;
+  onRegisterExport?: (exportFn: (jointExtras?: JointExportExtras) => void) => void;
 }
 
 export const MitigationBudgetControls: React.FC<MitigationBudgetControlsProps> = ({
@@ -45,6 +49,7 @@ export const MitigationBudgetControls: React.FC<MitigationBudgetControlsProps> =
   onScenarioStateChange,
   showSubmitButton = true,
   placedIndustrial = [],
+  onRegisterExport,
 }) => {
   const b = useMitigationBudgetV2({
     selectedBenefits,
@@ -61,6 +66,9 @@ export const MitigationBudgetControls: React.FC<MitigationBudgetControlsProps> =
       allocWater: b.allocWater,
       allocWaste: b.allocWaste,
       allocAir: b.allocAir,
+      avgChainSpreadPct: b.avgChainSpreadPct,
+      spreadPenaltyPct: b.spreadPenaltyPct,
+      sitingPenaltyUsd: b.sitingPenaltyUsd,
     });
   }, [
     b.totalBudget,
@@ -68,6 +76,9 @@ export const MitigationBudgetControls: React.FC<MitigationBudgetControlsProps> =
     b.allocWater,
     b.allocWaste,
     b.allocAir,
+    b.avgChainSpreadPct,
+    b.spreadPenaltyPct,
+    b.sitingPenaltyUsd,
     selectedBenefits,
     onMetricsChange,
   ]);
@@ -86,6 +97,10 @@ export const MitigationBudgetControls: React.FC<MitigationBudgetControlsProps> =
     b.scenarioLocked,
     onScenarioStateChange,
   ]);
+
+  useEffect(() => {
+    onRegisterExport?.(b.handleDownloadCSV);
+  }, [b.handleDownloadCSV, onRegisterExport]);
 
   const dropdownClass = (locked: boolean) =>
     clsx('p-2 border rounded text-sm', locked ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-gray-50');
@@ -209,20 +224,31 @@ export const MitigationBudgetControls: React.FC<MitigationBudgetControlsProps> =
         )}
         <div
           className={clsx(
-            'text-sm font-bold mt-1.5 px-3 py-1 rounded-full',
+            'text-2xl font-extrabold mt-1.5',
             b.budgetOverrun
-              ? 'bg-red-100 text-red-800'
+              ? 'text-red-800'
               : b.unassignedBudget > 0
-                ? 'bg-green-100 text-green-700'
-                : 'bg-gray-200 text-gray-500'
+                ? 'text-green-700'
+                : 'text-gray-500'
           )}
         >
           {b.scenarioLocked ? 'Unassigned' : 'Available after lock'}: {formatCurrency(b.unassignedBudget)}
         </div>
+        {b.scenarioLocked && b.sitingPenaltyUsd > 0 && (
+          <>
+            <div className="text-[11px] text-amber-800 font-semibold mt-1.5">
+              Facility spread cost: −{formatCurrency(b.sitingPenaltyUsd)} ({b.spreadPenaltyPct.toFixed(1)}%)
+            </div>
+            <p className="text-[10px] text-gray-500 mt-1 leading-snug max-w-md">
+              Spreading extraction, refining, and processing farther apart increases logistics cost and
+              reduces unassigned budget.
+            </p>
+          </>
+        )}
         {b.budgetOverrun && b.scenarioLocked && (
           <p className="text-[11px] text-red-700 font-semibold mt-2 leading-snug max-w-md">
-            Total allocation exceeds this mitigation budget. Reduce water, waste, or air spend, or unselect
-            community benefits.
+            Total allocation exceeds this mitigation budget (including facility spread cost). Reduce water,
+            waste, or air spend, unselect community benefits, or cluster facilities closer on the map.
           </p>
         )}
       </div>
@@ -260,6 +286,10 @@ export const MitigationBudgetControls: React.FC<MitigationBudgetControlsProps> =
               Result: {formatNumber(b.targetWaterM3)} m³ ({b.waterReduction.toFixed(0)}% ↓)
             </span>
           </div>
+          <p className="text-[10px] text-gray-500 leading-snug">
+            {b.waterReduction.toFixed(0)}% is the share of water use mitigated below the{' '}
+            {b.selectedCapacity.label} capacity baseline — not percent of budget spent.
+          </p>
           {b.waterClamped && (
             <div className="text-[10px] font-bold text-red-600">Not enough unassigned budget for that level.</div>
           )}
@@ -297,6 +327,10 @@ export const MitigationBudgetControls: React.FC<MitigationBudgetControlsProps> =
               Result: {formatNumber(b.targetWasteTon)} tons ({b.wasteReduction.toFixed(0)}% ↓)
             </span>
           </div>
+          <p className="text-[10px] text-gray-500 leading-snug">
+            {b.wasteReduction.toFixed(0)}% is the share of waste mitigated below the{' '}
+            {b.selectedSize.label} mine baseline — not percent of budget spent.
+          </p>
           {b.wasteClamped && (
             <div className="text-[10px] font-bold text-red-600">Not enough unassigned budget for that level.</div>
           )}
@@ -396,7 +430,7 @@ export const MitigationBudgetControls: React.FC<MitigationBudgetControlsProps> =
       {showSubmitButton && (
         <button
           type="button"
-          onClick={b.handleDownloadCSV}
+          onClick={() => b.handleDownloadCSV()}
           className="mt-auto bg-gray-800 text-white px-4 py-3 rounded-lg font-bold shadow hover:bg-black flex items-center justify-center gap-2 text-sm"
         >
           <Download size={16} /> Submit Results

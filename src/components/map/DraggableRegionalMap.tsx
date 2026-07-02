@@ -54,6 +54,9 @@ export interface DraggableRegionalMapProps {
   /** Mine size, capacity, and facility tier for industrial placement limits (technical mode). */
   industrialScenario?: IndustrialScenario | null;
   scenarioLocked?: boolean;
+  /** Facility spread penalty (from mitigation budget hook). */
+  avgChainSpreadPct?: number;
+  spreadPenaltyPct?: number;
   className?: string;
 }
 
@@ -76,6 +79,8 @@ export const DraggableRegionalMap: React.FC<DraggableRegionalMapProps> = ({
   compact = false,
   industrialScenario = null,
   scenarioLocked = false,
+  avgChainSpreadPct = 0,
+  spreadPenaltyPct = 0,
   className,
 }) => {
   const isTechnical = mode === 'technical';
@@ -169,26 +174,6 @@ export const DraggableRegionalMap: React.FC<DraggableRegionalMapProps> = ({
         xPct: clampPct(pct.xPct),
         yPct: clampPct(pct.yPct),
       };
-      if (
-        isTechnical &&
-        type === 'processing' &&
-        industrialScenario &&
-        scenarioLocked
-      ) {
-        const refining = placedIndustrial.filter(p => p.type === 'refining');
-        if (
-          refining.length > 0 &&
-          !refining.some(
-            ref =>
-              Math.hypot(ref.xPct - newSym.xPct, ref.yPct - newSym.yPct) <= 15
-          )
-        ) {
-          alert(
-            'Processing must be placed within 15% map distance of a refining facility.'
-          );
-          return;
-        }
-      }
       setPlacedIndustrial(prev => [...prev, newSym]);
     },
     [
@@ -258,16 +243,6 @@ export const DraggableRegionalMap: React.FC<DraggableRegionalMapProps> = ({
 
     if (draggingCategory === 'industrial') {
       if (!canPlaceAt(x, y)) return;
-      const sym = placedIndustrial.find(s => s.id === draggingId);
-      if (sym?.type === 'processing' && industrialScenario && scenarioLocked) {
-        const refining = placedIndustrial.filter(p => p.type === 'refining');
-        if (
-          refining.length > 0 &&
-          !refining.some(ref => Math.hypot(ref.xPct - x, ref.yPct - y) <= 15)
-        ) {
-          return;
-        }
-      }
       setPlacedIndustrial(prev =>
         prev.map(s => (s.id === draggingId ? { ...s, xPct: x, yPct: y } : s))
       );
@@ -561,6 +536,11 @@ export const DraggableRegionalMap: React.FC<DraggableRegionalMapProps> = ({
               ? 'Lock scenario first, then site facilities per mine size, capacity, and facility tier.'
               : 'Shaded zones = no-build areas — industrial symbols cannot be placed there.'}
         </p>
+        {scenarioLocked && spreadPenaltyPct > 0 && (
+          <p className="font-medium text-amber-800">
+            Spread: {avgChainSpreadPct.toFixed(1)}% map · −{spreadPenaltyPct.toFixed(1)}% budget
+          </p>
+        )}
         {industrialScenario && scenarioLocked && (
           <p className="font-medium text-gray-700">
             Required: {formatFacilityPlacementSummary(placedIndustrial, industrialScenario)}

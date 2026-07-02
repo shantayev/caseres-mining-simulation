@@ -19,7 +19,7 @@ const ZONE_SHAPE: Record<
   mountain: { rounded: 'rounded-[2rem]', borderStyle: 'solid' },
   oldtown: { rounded: 'rounded-[2rem]', borderStyle: 'solid' },
   aquifer: { rounded: 'rounded-[2rem]', borderStyle: 'solid' },
-  campus: { rounded: 'rounded-[2rem]', borderStyle: 'solid' },
+  agriculture: { rounded: 'rounded-[2rem]', borderStyle: 'solid' },
 };
 
 const ZONE_LABEL_STYLE: Partial<Record<SelectableNoBuildId, React.CSSProperties>> = {
@@ -44,8 +44,7 @@ export const NoBuildOverlays: React.FC<NoBuildOverlaysProps> = ({
       const mismatch = highlightMismatchZoneIds.includes(zone.id);
       const visible = selected || mismatch;
       const shape = ZONE_SHAPE[zone.id];
-      const showLabel =
-        visible && NO_BUILD_ZONE_RECTS.findIndex(z => z.id === zone.id) === index;
+      const showLabel = visible;
       return (
         <div
           key={`${zone.id}-${index}`}
