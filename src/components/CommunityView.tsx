@@ -557,7 +557,7 @@ export const CommunityView: React.FC = () => {
                         .join(', ')}
                 </span>
               </div>
-              <div className="relative w-full aspect-[4/3] bg-gray-100">
+              <div className="relative w-full aspect-square bg-gray-100">
                 <img
                   src="/regional-map.png"
                   alt="Regional map"

@@ -93,7 +93,7 @@ export const DraggableRegionalMap: React.FC<DraggableRegionalMapProps> = ({
   );
 
   const containerRef = useRef<HTMLDivElement>(null);
-  const [naturalSize, setNaturalSize] = useState({ w: 4, h: 3 });
+  const [naturalSize, setNaturalSize] = useState({ w: 1, h: 1 });
   const [containerSize, setContainerSize] = useState({ w: 0, h: 0 });
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [draggingCategory, setDraggingCategory] = useState<'industrial' | 'benefit' | null>(null);
@@ -398,7 +398,7 @@ export const DraggableRegionalMap: React.FC<DraggableRegionalMapProps> = ({
           <div
             ref={containerRef}
             className={clsx(
-              'relative w-full aspect-[4/3] mx-auto',
+              'relative w-full aspect-square mx-auto',
               compact ? 'max-w-full' : 'max-w-full max-h-[min(68vh,620px)]'
             )}
             onDragOver={handleMapDragOver}

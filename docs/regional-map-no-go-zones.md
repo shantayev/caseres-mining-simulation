@@ -20,7 +20,7 @@ Mountain Trails and Ore Body are **separate** selections (not merged).
 
 ## 2. Map display
 
-- Regional map uses **`object-contain`** so the full image is visible (no cropping of northern mountain / ore areas).
+- Regional map image is **1254×1254** (square). Containers use **`aspect-square`** with **`object-contain`** so the map fills the box with no side letterboxing and no-go overlays stay aligned.
 - Selected no-go zones show a **red border** and light red fill.
 - **Ore Body** uses a **dashed** border; other zones use solid borders.
 - Zone labels appear inside selected regions.
