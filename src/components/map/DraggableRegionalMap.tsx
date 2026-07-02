@@ -54,6 +54,9 @@ export interface DraggableRegionalMapProps {
   /** Mine size, capacity, and facility tier for industrial placement limits (technical mode). */
   industrialScenario?: IndustrialScenario | null;
   scenarioLocked?: boolean;
+  /** Facility spread penalty (from mitigation budget hook). */
+  avgChainSpreadPct?: number;
+  spreadPenaltyPct?: number;
   className?: string;
 }
 
@@ -76,6 +79,8 @@ export const DraggableRegionalMap: React.FC<DraggableRegionalMapProps> = ({
   compact = false,
   industrialScenario = null,
   scenarioLocked = false,
+  avgChainSpreadPct = 0,
+  spreadPenaltyPct = 0,
   className,
 }) => {
   const isTechnical = mode === 'technical';
@@ -532,6 +537,11 @@ export const DraggableRegionalMap: React.FC<DraggableRegionalMapProps> = ({
             ? 'Lock scenario first, then site facilities per mine size, capacity, and facility tier.'
             : 'Shaded zones = no-build areas — industrial symbols cannot be placed there.'}
         </p>
+        {scenarioLocked && spreadPenaltyPct > 0 && (
+          <p className="font-medium text-amber-800">
+            Spread: {avgChainSpreadPct.toFixed(1)}% map · −{spreadPenaltyPct.toFixed(1)}% budget
+          </p>
+        )}
         {isTechnical && industrialScenario && scenarioLocked && (
           <p className="font-medium text-gray-700">
             Required: {formatFacilityPlacementSummary(placedIndustrial, industrialScenario)}

@@ -2,6 +2,7 @@ import { useState, useCallback, useMemo } from 'react';
 import { COMMUNITY_BENEFITS } from '../data/communityBenefits';
 import { serializeIndustrialPlacements, serializeBenefitPlacements } from '../data/mapOverlap';
 import { validateIndustrialPlacements } from '../data/industrialPlacementRules';
+import { computeFacilitySpreadPenalty } from '../data/facilitySpreadPenalty';
 import { escapeCsvField } from '../utils/csvParse';
 import type { PlacedIndustrialSymbol } from '../components/map/mapSymbols';
 import type { SelectableNoBuildId } from '../data/noBuildAreas';
@@ -107,9 +108,14 @@ export function useMitigationBudgetV2({
     [scenarioLocked, selectedBenefits]
   );
 
+  const { avgChainSpreadPct, spreadPenaltyPct, sitingPenaltyUsd } = useMemo(
+    () => computeFacilitySpreadPenalty(placedIndustrial, totalBudget, scenarioLocked),
+    [placedIndustrial, totalBudget, scenarioLocked]
+  );
+
   const totalAllocated = allocWater + allocWaste + allocAir + communitySpend;
-  const unassignedBudget = totalBudget - totalAllocated;
-  const budgetOverrun = totalAllocated > totalBudget;
+  const unassignedBudget = totalBudget - totalAllocated - sitingPenaltyUsd;
+  const budgetOverrun = totalAllocated + sitingPenaltyUsd > totalBudget;
 
   const W0 = selectedCapacity.water;
   const Wmin = ALPHA_W * W0;
@@ -123,15 +129,15 @@ export function useMitigationBudgetV2({
 
   const maxWaterSpendAffordable = Math.max(
     0,
-    totalBudget - allocWaste - allocAir - communitySpend
+    totalBudget - allocWaste - allocAir - communitySpend - sitingPenaltyUsd
   );
   const maxWasteSpendAffordable = Math.max(
     0,
-    totalBudget - allocWater - allocAir - communitySpend
+    totalBudget - allocWater - allocAir - communitySpend - sitingPenaltyUsd
   );
   const maxAirSpendAffordable = Math.max(
     0,
-    totalBudget - allocWater - allocWaste - communitySpend
+    totalBudget - allocWater - allocWaste - communitySpend - sitingPenaltyUsd
   );
 
   const syncWaterOutcome = useCallback(
@@ -296,9 +302,9 @@ export function useMitigationBudgetV2({
     const benefitIdsStr = selectedBenefits.join('|');
     const tier = selectedFacility;
     const industrialStr = escapeCsvField(serializeIndustrialPlacements(placedIndustrial));
-    const baseRow = `${selectedSize.value},${selectedCapacity.value},${totalBudget},${allocWater},${allocWaste},${allocAir},${communitySpend},${W_final.toFixed(0)},${S_final.toFixed(0)},${benefitIdsStr},${industrialStr},1,${tier.id},${allocAir},,${allocAir},${scenarioLocked ? 1 : 0}`;
+    const baseRow = `${selectedSize.value},${selectedCapacity.value},${totalBudget},${allocWater},${allocWaste},${allocAir},${communitySpend},${W_final.toFixed(0)},${S_final.toFixed(0)},${benefitIdsStr},${industrialStr},1,${tier.id},${allocAir},,${allocAir},${scenarioLocked ? 1 : 0},${avgChainSpreadPct.toFixed(2)},${spreadPenaltyPct.toFixed(2)},${Math.round(sitingPenaltyUsd)}`;
     const baseHeader =
-      'size_km2,capacity_mton,total_budget,water_alloc,waste_alloc,air_alloc,community_alloc,final_water_m3,final_waste_ton,selected_benefits,industrial_placements,air_quality_enabled,air_process,air_quality_aqi,air_aqi_range,air_budget_add,scenario_locked';
+      'size_km2,capacity_mton,total_budget,water_alloc,waste_alloc,air_alloc,community_alloc,final_water_m3,final_waste_ton,selected_benefits,industrial_placements,air_quality_enabled,air_process,air_quality_aqi,air_aqi_range,air_budget_add,scenario_locked,facility_spread_pct,siting_penalty_pct,siting_penalty_usd';
     let csvContent: string;
     let filename = 'mining_simulation_results.csv';
     if (jointExtras) {
@@ -349,6 +355,9 @@ export function useMitigationBudgetV2({
     communitySpend,
     unassignedBudget,
     budgetOverrun,
+    avgChainSpreadPct,
+    spreadPenaltyPct,
+    sitingPenaltyUsd,
     waterReduction,
     wasteReduction,
     handleSizeChange,

@@ -27,6 +27,9 @@ export interface MitigationBudgetControlsProps {
     allocWater: number;
     allocWaste: number;
     allocAir: number;
+    avgChainSpreadPct: number;
+    spreadPenaltyPct: number;
+    sitingPenaltyUsd: number;
   }) => void;
   onScenarioStateChange?: (s: {
     selectedSize: MineSize;
@@ -63,6 +66,9 @@ export const MitigationBudgetControls: React.FC<MitigationBudgetControlsProps> =
       allocWater: b.allocWater,
       allocWaste: b.allocWaste,
       allocAir: b.allocAir,
+      avgChainSpreadPct: b.avgChainSpreadPct,
+      spreadPenaltyPct: b.spreadPenaltyPct,
+      sitingPenaltyUsd: b.sitingPenaltyUsd,
     });
   }, [
     b.totalBudget,
@@ -70,6 +76,9 @@ export const MitigationBudgetControls: React.FC<MitigationBudgetControlsProps> =
     b.allocWater,
     b.allocWaste,
     b.allocAir,
+    b.avgChainSpreadPct,
+    b.spreadPenaltyPct,
+    b.sitingPenaltyUsd,
     selectedBenefits,
     onMetricsChange,
   ]);
@@ -225,10 +234,21 @@ export const MitigationBudgetControls: React.FC<MitigationBudgetControlsProps> =
         >
           {b.scenarioLocked ? 'Unassigned' : 'Available after lock'}: {formatCurrency(b.unassignedBudget)}
         </div>
+        {b.scenarioLocked && b.sitingPenaltyUsd > 0 && (
+          <>
+            <div className="text-[11px] text-amber-800 font-semibold mt-1.5">
+              Facility spread cost: −{formatCurrency(b.sitingPenaltyUsd)} ({b.spreadPenaltyPct.toFixed(1)}%)
+            </div>
+            <p className="text-[10px] text-gray-500 mt-1 leading-snug max-w-md">
+              Spreading extraction, refining, and processing farther apart increases logistics cost and
+              reduces unassigned budget.
+            </p>
+          </>
+        )}
         {b.budgetOverrun && b.scenarioLocked && (
           <p className="text-[11px] text-red-700 font-semibold mt-2 leading-snug max-w-md">
-            Total allocation exceeds this mitigation budget. Reduce water, waste, or air spend, or unselect
-            community benefits.
+            Total allocation exceeds this mitigation budget (including facility spread cost). Reduce water,
+            waste, or air spend, unselect community benefits, or cluster facilities closer on the map.
           </p>
         )}
       </div>

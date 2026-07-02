@@ -9,7 +9,7 @@ After locking the scenario, technical teams drag industrial facility icons onto 
 ## 1. When rules apply
 
 - **Lock scenario** in Configuration before placing facilities.
-- Rules run on the **Developer** map only (not Joint community-benefit map).
+- Rules apply on the **Developer** and **Joint** maps after scenario lock.
 - **Export** (`mining_simulation_results.csv`) is blocked until all required sites are placed and valid.
 
 ---
@@ -84,6 +84,31 @@ See [admin-feasibility.md](admin-feasibility.md).
 
 ---
 
+## 9. Facility spread budget penalty
+
+After scenario lock, spreading **extraction**, **refining**, and **processing** farther apart on the map reduces **unassigned budget** (not the displayed total “Potential Investment”).
+
+### Chain distance
+
+For each refining pin: distance to the nearest extraction. For each processing pin: distance to the nearest refining. **Average spread** = mean of those legs (map %, Euclidean). Advanced manufacturing is excluded.
+
+### Graduated penalty
+
+| Avg spread | Budget penalty |
+|------------|------------------|
+| ≤ 10% map | 0% |
+| ≥ 35% map | 10% (cap) |
+| Between | Linear interpolation |
+
+```
+penalty_usd = total_budget × penalty_pct / 100
+unassigned = total_budget − water − waste − air − community_benefits − penalty_usd
+```
+
+Constants are tunable in `src/data/facilitySpreadPenalty.ts`. The UI shows **Facility spread cost** when penalty &gt; 0. CSV export adds `facility_spread_pct`, `siting_penalty_pct`, and `siting_penalty_usd` columns.
+
+---
+
 ## Implementation
 
-Logic lives in `src/data/industrialPlacementRules.ts`, enforced in `DraggableRegionalMap.tsx` and validated on export in `useMitigationBudgetV2.ts`.
+Logic lives in `src/data/industrialPlacementRules.ts` and `src/data/facilitySpreadPenalty.ts`, enforced in `DraggableRegionalMap.tsx` and `useMitigationBudgetV2.ts`.

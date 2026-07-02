@@ -18,6 +18,8 @@ export const DeveloperView: React.FC = () => {
   const [selectedCapacity, setSelectedCapacity] = useState<Capacity>(CAPACITIES[0]);
   const [selectedFacilityId, setSelectedFacilityId] = useState<AirTierId>('extraction');
   const [scenarioLocked, setScenarioLocked] = useState(false);
+  const [avgChainSpreadPct, setAvgChainSpreadPct] = useState(0);
+  const [spreadPenaltyPct, setSpreadPenaltyPct] = useState(0);
 
   const industrialScenario = useMemo(
     () => ({
@@ -54,6 +56,17 @@ export const DeveloperView: React.FC = () => {
     []
   );
 
+  const handleMetricsChange = useCallback(
+    (m: {
+      avgChainSpreadPct: number;
+      spreadPenaltyPct: number;
+    }) => {
+      setAvgChainSpreadPct(m.avgChainSpreadPct);
+      setSpreadPenaltyPct(m.spreadPenaltyPct);
+    },
+    []
+  );
+
   return (
     <div className="flex-1 flex flex-col gap-3 min-h-0 overflow-hidden relative font-sans text-gray-900 h-full">
       <p className="text-[11px] text-gray-600 px-1 shrink-0">
@@ -69,6 +82,7 @@ export const DeveloperView: React.FC = () => {
             onScenarioUnlock={handleScenarioUnlock}
             placedIndustrial={placedIndustrial}
             onScenarioStateChange={handleScenarioStateChange}
+            onMetricsChange={handleMetricsChange}
           />
         </div>
 
@@ -103,6 +117,8 @@ export const DeveloperView: React.FC = () => {
             onPlacedIndustrialChange={setPlacedIndustrial}
             industrialScenario={industrialScenario}
             scenarioLocked={scenarioLocked}
+            avgChainSpreadPct={avgChainSpreadPct}
+            spreadPenaltyPct={spreadPenaltyPct}
           />
         </div>
       </div>

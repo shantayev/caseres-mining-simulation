@@ -69,7 +69,7 @@ export function countByType(
   return counts;
 }
 
-function mapDistancePct(a: PlacedIndustrialSymbol, b: PlacedIndustrialSymbol): number {
+export function mapDistancePct(a: PlacedIndustrialSymbol, b: PlacedIndustrialSymbol): number {
   const dx = a.xPct - b.xPct;
   const dy = a.yPct - b.yPct;
   return Math.sqrt(dx * dx + dy * dy);
