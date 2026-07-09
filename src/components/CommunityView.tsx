@@ -14,6 +14,7 @@ import {
   type CommunityBenefitId,
 } from '../data/communityBenefits';
 import { NoBuildOverlays } from './map/NoBuildOverlays';
+import { MapScaleBar } from './map/MapScaleBar';
 
 type GroupId = 'tourism' | 'agriculture' | 'academics' | 'industries' | 'environmental';
 type MineSizeId = '8km' | '4km' | '2km' | '1km' | '0.5km' | 'oppose';
@@ -33,10 +34,10 @@ const GROUPS: Group[] = [
 ];
 
 const MINE_SIZES: { id: MineSizeId; label: string; benefitsUnlocked: number; image: string }[] = [
-  { id: '8km', label: '8 km²', benefitsUnlocked: 3, image: '/mining_5.png' },
-  { id: '4km', label: '4 km²', benefitsUnlocked: 2, image: '/mining_4.png' },
-  { id: '2km', label: '2 km²', benefitsUnlocked: 2, image: '/mining_3.png' },
-  { id: '1km', label: '1 km²', benefitsUnlocked: 1, image: '/mining_2.png' },
+  { id: '8km', label: '8 km²', benefitsUnlocked: 5, image: '/mining_5.png' },
+  { id: '4km', label: '4 km²', benefitsUnlocked: 4, image: '/mining_4.png' },
+  { id: '2km', label: '2 km²', benefitsUnlocked: 3, image: '/mining_3.png' },
+  { id: '1km', label: '1 km²', benefitsUnlocked: 2, image: '/mining_2.png' },
   { id: '0.5km', label: '0.5 km²', benefitsUnlocked: 1, image: '/mining_1.png' },
   { id: 'oppose', label: 'Oppose Mine', benefitsUnlocked: 0, image: '/baseline.png' },
 ];
@@ -564,10 +565,10 @@ export const CommunityView: React.FC = () => {
                   className="absolute inset-0 w-full h-full object-contain object-center"
                 />
                 <NoBuildOverlays selectedNoBuildIds={selectedNoBuildIds} />
+                <MapScaleBar />
               </div>
               <div className="px-2 py-1 text-[10px] text-gray-500">
-                Selected no-go zones show a red border and light fill. Mountain Trails and Ore Body
-                are separate regions.
+                Map scale: 10 km × 10 km. Selected no-go zones show a red border and light fill.
               </div>
             </div>
 

@@ -38,10 +38,10 @@ If all tallies are 0, there is no winner.
 | Winner | Benefits allowed | Max no-go zones |
 |--------|------------------|-----------------|
 | 0.5 km² | 1 | 4 |
-| 1 km² | 1 | 3 |
-| 2 km² | 2 | 2 |
-| 4 km² | 2 | 1 |
-| 8 km² | 3 | 0 |
+| 1 km² | 2 | 3 |
+| 2 km² | 3 | 2 |
+| 4 km² | 4 | 1 |
+| 8 km² | 5 | 0 |
 | Oppose | 0 | 4 |
 
 When the winning mine size changes, no-go selections reset if the new limit is lower (e.g. 8 km² → 0 zones).
@@ -205,40 +205,31 @@ Rules apply on **Developer** and **Joint** maps after scenario lock. See [facili
 
 **Advanced manufacturing** (tier = Advanced Manufacturing): exactly **1** additional site.
 
+**Extraction proximity:** each extraction site must be within **1 km** of the ore body region (`ORE_BODY_REGION` in `noBuildZones.ts`).
+
 ### 5.2 Map distance
 
-Facilities use map coordinates as percent of image width/height:
+The regional map represents a **10 km × 10 km** area. Facilities use map coordinates as percent of image width/height:
 
 ```
-distance(a, b) = √((x_a − x_b)² + (y_a − y_b)²)   [map %]
+distance_pct(a, b) = √((x_a − x_b)² + (y_a − y_b)²)
+distance_km        = distance_pct × (10 / 100)    // 10% = 1 km
 ```
 
 ### 5.3 Facility spread budget penalty
 
-After lock, for placed extraction / refining / processing pins:
+After lock, each placed facility pin is scored by distance to a linked reference (extraction→ore body, refining→extraction, processing→refining, advanced mfg→processing):
 
 ```
-For each refining pin:   leg = distance to nearest extraction
-For each processing pin: leg = distance to nearest refining
+Per pin: if distance ≤ 1 km (10% map) → penalty rate 0
+         else → penalty rate = distance_pct
 
-avgChainSpreadPct = mean(all legs)
+totalPenaltyPct = min(100, sum of per-pin penalty rates)
+sitingPenaltyUsd = grossUnassigned × totalPenaltyPct / 100
+grossUnassigned = totalBudget − water − waste − air − community_benefits
 ```
 
-Advanced manufacturing is excluded from spread calculation.
-
-**Graduated penalty** (applied to `totalBudget`, reduces `unassignedBudget`):
-
-| Avg chain spread | Penalty (% of total budget) |
-|------------------|----------------------------|
-| ≤ 10% map | 0% |
-| ≥ 35% map | 10% (cap) |
-| Between | Linear interpolation |
-
-```
-sitingPenaltyUsd = totalBudget × penaltyPct / 100
-```
-
-Constants: `src/data/facilitySpreadPenalty.ts`.
+There is **no distance cap** above 1 km — penalty scales with map distance %. Constants: `src/data/facilitySpreadPenalty.ts`.
 
 ---
 

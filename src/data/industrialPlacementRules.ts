@@ -1,5 +1,9 @@
 import type { AirTierId } from './mitigationConstants';
 import type { IndustrialSymbolType, PlacedIndustrialSymbol } from '../components/map/mapSymbols';
+import {
+  pointToOreBodyDistanceKm,
+} from '../components/map/noBuildZones';
+import { EXTRACTION_MAX_KM_FROM_ORE_BODY } from './mapScale';
 
 export interface IndustrialScenario {
   mineSizeKm2: number;
@@ -72,10 +76,28 @@ export function mapDistancePct(a: PlacedIndustrialSymbol, b: PlacedIndustrialSym
   return Math.sqrt(dx * dx + dy * dy);
 }
 
+export function validateIndustrialPlacementLocation(
+  type: IndustrialSymbolType,
+  xPct: number,
+  yPct: number
+): { ok: boolean; message?: string } {
+  if (type !== 'extraction') return { ok: true };
+  const distKm = pointToOreBodyDistanceKm(xPct, yPct);
+  if (distKm > EXTRACTION_MAX_KM_FROM_ORE_BODY) {
+    return {
+      ok: false,
+      message: `Extraction must be within ${EXTRACTION_MAX_KM_FROM_ORE_BODY} km of the ore body (this site is ${distKm.toFixed(1)} km away).`,
+    };
+  }
+  return { ok: true };
+}
+
 export function canPlaceIndustrialType(
   type: IndustrialSymbolType,
   placements: PlacedIndustrialSymbol[],
-  scenario: IndustrialScenario
+  scenario: IndustrialScenario,
+  xPct?: number,
+  yPct?: number
 ): { ok: boolean; message?: string } {
   const limits = getFacilityLimits(scenario);
   const max = limits[type];
@@ -92,6 +114,10 @@ export function canPlaceIndustrialType(
       ok: false,
       message: `Maximum ${max} ${label} site(s) for this mine size, capacity, and facility tier.`,
     };
+  }
+  if (xPct !== undefined && yPct !== undefined) {
+    const locationCheck = validateIndustrialPlacementLocation(type, xPct, yPct);
+    if (!locationCheck.ok) return locationCheck;
   }
   return { ok: true };
 }
@@ -117,6 +143,12 @@ export function validateIndustrialPlacements(
 
   checkType('extraction', 'extraction');
   checkType('refining', 'refining');
+
+  for (const site of placements.filter(p => p.type === 'extraction')) {
+    const locationCheck = validateIndustrialPlacementLocation('extraction', site.xPct, site.yPct);
+    if (!locationCheck.ok) messages.push(locationCheck.message!);
+  }
+
   if (ti >= 2) {
     checkType('processing', 'processing');
     if (counts.processing !== counts.refining) {

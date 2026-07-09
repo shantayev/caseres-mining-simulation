@@ -15,7 +15,6 @@ const ZONE_SHAPE: Record<
   SelectableNoBuildId,
   { rounded: string; borderStyle: 'solid' | 'dashed' }
 > = {
-  ore_body: { rounded: 'rounded-lg', borderStyle: 'dashed' },
   mountain: { rounded: 'rounded-[2rem]', borderStyle: 'solid' },
   oldtown: { rounded: 'rounded-[2rem]', borderStyle: 'solid' },
   aquifer: { rounded: 'rounded-[2rem]', borderStyle: 'solid' },
@@ -24,7 +23,6 @@ const ZONE_SHAPE: Record<
 
 const ZONE_LABEL_STYLE: Partial<Record<SelectableNoBuildId, React.CSSProperties>> = {
   mountain: { top: '2px', left: '50%', transform: 'translateX(-50%)' },
-  ore_body: { top: '2px', left: '4px' },
 };
 
 const DEFAULT_LABEL_STYLE: React.CSSProperties = { top: '2px', left: '4px' };
