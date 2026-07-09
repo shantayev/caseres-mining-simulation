@@ -15,12 +15,20 @@ const ZONE_SHAPE: Record<
   SelectableNoBuildId,
   { rounded: string; borderStyle: 'solid' | 'dashed' }
 > = {
-  ore_body: { rounded: 'rounded-lg', borderStyle: 'dashed' },
   mountain: { rounded: 'rounded-[2rem]', borderStyle: 'solid' },
   oldtown: { rounded: 'rounded-[2rem]', borderStyle: 'solid' },
   aquifer: { rounded: 'rounded-[2rem]', borderStyle: 'solid' },
   agriculture: { rounded: 'rounded-[2rem]', borderStyle: 'solid' },
 };
+
+const ZONE_LABEL_STYLE: Partial<Record<SelectableNoBuildId, React.CSSProperties>> = {
+  mountain: { top: '2px', left: '50%', transform: 'translateX(-50%)' },
+};
+
+const DEFAULT_LABEL_STYLE: React.CSSProperties = { top: '2px', left: '4px' };
+
+const LABEL_CLASS =
+  'absolute z-10 text-[8px] font-bold text-red-900 bg-white/90 px-1 rounded leading-tight whitespace-nowrap shadow-sm';
 
 /** Bordered overlays aligned to regional-map.png (percent of map box). */
 export const NoBuildOverlays: React.FC<NoBuildOverlaysProps> = ({
@@ -28,7 +36,7 @@ export const NoBuildOverlays: React.FC<NoBuildOverlaysProps> = ({
   highlightMismatchZoneIds = [],
   className,
 }) => (
-  <div className={clsx('pointer-events-none absolute inset-0', className)}>
+  <div className={clsx('pointer-events-none absolute inset-0 overflow-visible', className)}>
     {NO_BUILD_ZONE_RECTS.map((zone, index) => {
       const selected = selectedNoBuildIds.includes(zone.id);
       const mismatch = highlightMismatchZoneIds.includes(zone.id);
@@ -39,7 +47,7 @@ export const NoBuildOverlays: React.FC<NoBuildOverlaysProps> = ({
         <div
           key={`${zone.id}-${index}`}
           className={clsx(
-            'absolute transition-all duration-300 box-border',
+            'absolute transition-all duration-300 box-border overflow-visible',
             shape.rounded,
             shape.borderStyle === 'dashed' ? 'border-dashed' : 'border-solid',
             visible
@@ -56,7 +64,10 @@ export const NoBuildOverlays: React.FC<NoBuildOverlaysProps> = ({
           aria-hidden={!visible}
         >
           {showLabel && (
-            <span className="absolute top-0.5 left-1 text-[8px] font-bold text-red-900 bg-white/80 px-1 rounded leading-tight max-w-[90%] truncate">
+            <span
+              className={LABEL_CLASS}
+              style={ZONE_LABEL_STYLE[zone.id] ?? DEFAULT_LABEL_STYLE}
+            >
               {getNoBuildAreaLabel(zone.id)}
             </span>
           )}

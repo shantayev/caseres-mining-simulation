@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import confetti from 'canvas-confetti';
 import { Download } from 'lucide-react';
 import {
@@ -60,9 +60,20 @@ export const JointView: React.FC = () => {
   >({});
   const [placedIndustrial, setPlacedIndustrial] = useState<PlacedIndustrialSymbol[]>([]);
   const [selectedSize, setSelectedSize] = useState<MineSize | null>(null);
+  const [selectedCapacity, setSelectedCapacity] = useState<Capacity | null>(null);
+  const [selectedFacilityId, setSelectedFacilityId] = useState<AirTierId | null>(null);
   const [scenarioLocked, setScenarioLocked] = useState(false);
   const [avgChainSpreadPct, setAvgChainSpreadPct] = useState(0);
   const [spreadPenaltyPct, setSpreadPenaltyPct] = useState(0);
+
+  const industrialScenario = useMemo(() => {
+    if (!selectedSize || !selectedCapacity || !selectedFacilityId) return null;
+    return {
+      mineSizeKm2: selectedSize.value,
+      capacityMton: selectedCapacity.value,
+      facilityTier: selectedFacilityId,
+    };
+  }, [selectedSize, selectedCapacity, selectedFacilityId]);
 
   const exportFnRef = useRef<((jointExtras?: JointExportExtras) => void) | null>(null);
 
@@ -113,6 +124,8 @@ export const JointView: React.FC = () => {
       scenarioLocked: boolean;
     }) => {
       setSelectedSize(s.selectedSize);
+      setSelectedCapacity(s.selectedCapacity);
+      setSelectedFacilityId(s.selectedFacilityId);
       setScenarioLocked(s.scenarioLocked);
     },
     []
@@ -251,6 +264,7 @@ export const JointView: React.FC = () => {
             onPlacedIndustrialChange={setPlacedIndustrial}
             onBenefitPlace={handleBenefitPlace}
             onBenefitRemove={handleBenefitRemove}
+            industrialScenario={industrialScenario}
             scenarioLocked={scenarioLocked}
             avgChainSpreadPct={avgChainSpreadPct}
             spreadPenaltyPct={spreadPenaltyPct}

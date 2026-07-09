@@ -70,6 +70,7 @@ See **[Admin feasibility analysis](docs/admin-feasibility.md)** for full rules.
 
 ### Documentation
 
+- **[Simulation equations & logic](docs/simulation-equations-and-logic.md)** — consolidated equations for budget, utility, siting, no-go zones, and admin feasibility.
 - **[Admin feasibility analysis](docs/admin-feasibility.md)** — three-section feasibility panel, map siting conflicts, overall verdict rules (PIN 5555).
 - **[Community benefit utility calculation](docs/utility-calculation.md)** — coefficients, lever weights, formulas, hover tooltips, and chart interpretation (Admin & Joint).
 - **[Regional map & no-go zones](docs/regional-map-no-go-zones.md)** — five selectable regions, bordered overlays, mine-size limits.

@@ -8,7 +8,7 @@ After locking the scenario, technical teams drag industrial facility icons onto 
 
 ## 1. When rules apply
 
-- **Lock scenario** in Configuration before placing facilities.
+- **Lock scenario** in Configuration before placing facilities (map icons are disabled until lock).
 - Rules apply on the **Developer** and **Joint** maps after scenario lock.
 - **Export** (`mining_simulation_results.csv`) is blocked until all required sites are placed and valid.
 
@@ -23,6 +23,8 @@ After locking the scenario, technical teams drag industrial facility icons onto 
 | 8 | **3** |
 
 *Note: There is no 6 km² option; 4 km² uses the 2-site rule.*
+
+**Location rule:** Each extraction site must be within **1 km** of the ore body region (shown on the base map). A dashed amber guide appears after scenario lock on Developer and Joint maps.
 
 ---
 
@@ -66,8 +68,10 @@ When **Facility** is **Processing** or **Advanced Manufacturing**:
 
 ## 7. Map UI feedback
 
+- **1 km scale bar** in the bottom-left (10 km × 10 km map extent).
+- Dashed **amber extraction zone** guide (1 km buffer around ore body) after scenario lock.
 - Footer shows progress, e.g. `extraction 1/1 · refining 2/2`.
-- Dropping over the limit shows an alert.
+- Dropping over the limit or outside the extraction zone shows an alert.
 - Spreading facilities apart increases the **facility spread cost** on unassigned budget (§9).
 
 ---
@@ -92,12 +96,12 @@ After scenario lock, each placed facility is scored by **map distance** to a lin
 
 | Facility type | Linked to | Free zone |
 |---------------|-----------|-----------|
-| Extraction | **Ore Body** zone (map rectangle) | ≤ 5% map |
-| Refining | Nearest **extraction** pin | ≤ 5% map |
-| Processing | Nearest **refining** pin | ≤ 5% map |
-| Advanced manufacturing | Nearest **processing** pin | ≤ 5% map |
+| Extraction | **Ore Body** region (map rectangle) | ≤ 1 km |
+| Refining | Nearest **extraction** pin | ≤ 1 km |
+| Processing | Nearest **refining** pin | ≤ 1 km |
+| Advanced manufacturing | Nearest **processing** pin | ≤ 1 km |
 
-If distance ≤ 5% map → **0%** penalty for that pin. If farther → penalty rate = **distance %** (e.g. 25% map → +25% penalty rate).
+If distance ≤ 1 km → **0%** penalty for that pin. If farther → penalty rate = **distance %** on the 10 km map (e.g. 2.5 km → 25% penalty rate for that pin). There is **no upper distance cap** — penalty scales with distance above 1 km.
 
 If the upstream reference is not placed yet (e.g. refining before extraction), that pin contributes 0% until the reference exists.
 
@@ -110,7 +114,7 @@ siting_penalty_usd = gross_unassigned × total_penalty_pct / 100
 displayed_unassigned = gross_unassigned − siting_penalty_usd
 ```
 
-Constants: `SITING_FREE_DISTANCE_PCT = 5` in `src/data/facilitySpreadPenalty.ts`. UI shows **Facility spread cost** when penalty &gt; 0. CSV export adds `facility_spread_pct` (mean link distance), `siting_penalty_pct`, and `siting_penalty_usd`.
+Constants: `SITING_FREE_DISTANCE_PCT = 10` (1 km) in `src/data/facilitySpreadPenalty.ts`. UI shows **Facility spread cost** when penalty &gt; 0. CSV export adds `facility_spread_pct` (mean link distance), `siting_penalty_pct`, and `siting_penalty_usd`.
 
 ---
 

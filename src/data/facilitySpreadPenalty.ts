@@ -1,10 +1,11 @@
 import type { PlacedIndustrialSymbol } from '../components/map/mapSymbols';
 import type { IndustrialSymbolType } from '../components/map/mapSymbols';
 import { mapDistancePct } from './industrialPlacementRules';
-import { NO_BUILD_ZONE_RECTS, type NoBuildZoneRect } from '../components/map/noBuildZones';
+import { ORE_BODY_REGION, type MapRegionRect } from '../components/map/noBuildZones';
+import { KM_TO_MAP_PCT } from './mapScale';
 
-/** Within this map % of the linked reference → no penalty for that pin. */
-export const SITING_FREE_DISTANCE_PCT = 5;
+/** Within this map % of the linked reference → no penalty for that pin (1 km on a 10 km map). */
+export const SITING_FREE_DISTANCE_PCT = KM_TO_MAP_PCT;
 
 /** Sum of per-pin penalty rates is capped at this %. */
 export const SITING_PENALTY_SUM_CAP_PCT = 100;
@@ -25,14 +26,10 @@ export interface FacilitySpreadPenaltyResult {
   breakdown: PinPenaltyBreakdown[];
 }
 
-const ORE_BODY_RECT =
-  NO_BUILD_ZONE_RECTS.find(z => z.id === 'ore_body') ??
-  ({ id: 'ore_body', top: 12, left: 38, width: 24, height: 17 } as NoBuildZoneRect);
-
 export function distancePointToRectPct(
   xPct: number,
   yPct: number,
-  rect: NoBuildZoneRect
+  rect: MapRegionRect
 ): number {
   const clampX = Math.max(rect.left, Math.min(rect.left + rect.width, xPct));
   const clampY = Math.max(rect.top, Math.min(rect.top + rect.height, yPct));
@@ -66,7 +63,7 @@ export function computePerPinPenalties(
   const distances: number[] = [];
 
   for (const pin of extractions) {
-    const distancePct = distancePointToRectPct(pin.xPct, pin.yPct, ORE_BODY_RECT);
+    const distancePct = distancePointToRectPct(pin.xPct, pin.yPct, ORE_BODY_REGION);
     distances.push(distancePct);
     breakdown.push({
       type: 'extraction',

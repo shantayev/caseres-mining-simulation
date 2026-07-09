@@ -1,4 +1,4 @@
-export type NoBuildAreaId = 'none' | 'mountain' | 'ore_body' | 'oldtown' | 'aquifer' | 'agriculture';
+export type NoBuildAreaId = 'none' | 'mountain' | 'oldtown' | 'aquifer' | 'agriculture';
 export type SelectableNoBuildId = Exclude<NoBuildAreaId, 'none'>;
 
 export interface NoBuildAreaDef {
@@ -8,8 +8,10 @@ export interface NoBuildAreaDef {
 }
 
 /** Legacy CSV id from before agriculture rename. */
-export const LEGACY_NO_BUILD_ALIASES: Record<string, SelectableNoBuildId> = {
+export const LEGACY_NO_BUILD_ALIASES: Record<string, SelectableNoBuildId | null> = {
   campus: 'agriculture',
+  /** Ore body was removed as a selectable no-go zone. */
+  ore_body: null,
 };
 
 /** Selectable no-go regions on the regional map. */
@@ -19,11 +21,6 @@ export const NO_BUILD_AREAS: NoBuildAreaDef[] = [
     id: 'mountain',
     label: 'Mountain Trails',
     description: 'Exclude the mountain trails area from mining.',
-  },
-  {
-    id: 'ore_body',
-    label: 'Ore Body',
-    description: 'Exclude the estimated ore body from mining.',
   },
   {
     id: 'oldtown',
@@ -69,8 +66,12 @@ export function getMaxNoBuildZonesForCommunityWinner(winnerId: string | null | u
 export function normalizeNoBuildId(raw: string): SelectableNoBuildId | null {
   const id = raw.trim();
   if (!id || id === 'none') return null;
-  const aliased = LEGACY_NO_BUILD_ALIASES[id] ?? id;
-  const match = NO_BUILD_AREAS.find(a => a.id === aliased);
+  if (id in LEGACY_NO_BUILD_ALIASES) {
+    const aliased = LEGACY_NO_BUILD_ALIASES[id];
+    if (aliased === null) return null;
+    return aliased;
+  }
+  const match = NO_BUILD_AREAS.find(a => a.id === id);
   return match && match.id !== 'none' ? (match.id as SelectableNoBuildId) : null;
 }
 
