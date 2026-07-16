@@ -153,32 +153,60 @@ export const ScenarioLockControls: React.FC<{ b: MitigationBudgetApi }> = ({ b }
             <Unlock size={16} /> Unlock scenario
           </button>
           {b.phase === 'siting' && (
-            <button
-              type="button"
-              onClick={b.continueFromSiting}
-              disabled={!b.canContinueFromSiting}
-              title={
-                b.canContinueFromSiting
-                  ? 'Continue to mitigation'
-                  : b.sitingValidation.messages.join(' ') || 'Place all required facilities first'
-              }
-              className={clsx(
-                'flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-bold',
-                b.canContinueFromSiting
-                  ? 'bg-gray-900 text-white hover:bg-black'
-                  : 'bg-gray-200 text-gray-500 cursor-not-allowed'
-              )}
-            >
-              Continue to mitigation <ChevronRight size={16} />
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={b.unlockScenario}
+                className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg border border-gray-300 bg-white text-sm font-bold text-gray-800 hover:bg-gray-50"
+                title="Back to Step 1 (unlock and clear placements/benefits)"
+              >
+                Back to scenario
+              </button>
+              <button
+                type="button"
+                onClick={b.continueFromSiting}
+                disabled={!b.canContinueFromSiting}
+                title={
+                  b.canContinueFromSiting
+                    ? 'Continue to mitigation'
+                    : b.sitingValidation.messages.join(' ') || 'Place all required facilities first'
+                }
+                className={clsx(
+                  'flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-bold',
+                  b.canContinueFromSiting
+                    ? 'bg-gray-900 text-white hover:bg-black'
+                    : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                )}
+              >
+                Continue to mitigation <ChevronRight size={16} />
+              </button>
+            </>
           )}
           {b.phase === 'mitigation' && (
+            <>
+              <button
+                type="button"
+                onClick={b.backFromMitigation}
+                className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg border border-gray-300 bg-white text-sm font-bold text-gray-800 hover:bg-gray-50"
+              >
+                Back to siting
+              </button>
+              <button
+                type="button"
+                onClick={b.continueFromMitigation}
+                className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg bg-gray-900 text-white text-sm font-bold hover:bg-black"
+              >
+                Continue to benefits <ChevronRight size={16} />
+              </button>
+            </>
+          )}
+          {b.phase === 'benefits' && (
             <button
               type="button"
-              onClick={b.continueFromMitigation}
-              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg bg-gray-900 text-white text-sm font-bold hover:bg-black"
+              onClick={b.backFromBenefits}
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg border border-gray-300 bg-white text-sm font-bold text-gray-800 hover:bg-gray-50"
             >
-              Continue to benefits <ChevronRight size={16} />
+              Back to mitigation
             </button>
           )}
         </>

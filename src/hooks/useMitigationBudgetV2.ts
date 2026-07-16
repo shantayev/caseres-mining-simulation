@@ -39,7 +39,7 @@ import {
 const clampWaterTargetStep = (value: number) => Math.round(value / 10_000) * 10_000;
 const clampWasteTargetStep = (value: number) => Math.round(value / 50_000) * 50_000;
 
-/** Forward-only workflow after scenario lock. */
+/** Wizard workflow after scenario lock. */
 export type WorkflowPhase = 'scenario' | 'siting' | 'mitigation' | 'benefits';
 
 export const WORKFLOW_PHASE_LABELS: Record<WorkflowPhase, string> = {
@@ -274,6 +274,16 @@ export function useMitigationBudgetV2({
     setPhase('benefits');
   };
 
+  const backFromMitigation = () => {
+    if (phase !== 'mitigation') return;
+    setPhase('siting');
+  };
+
+  const backFromBenefits = () => {
+    if (phase !== 'benefits') return;
+    setPhase('mitigation');
+  };
+
   const applyWaterTarget = (desiredAllocUsd: number) => {
     if (phase !== 'mitigation') return;
     const raw = Number.isFinite(desiredAllocUsd) ? desiredAllocUsd : lockedWaterFloor;
@@ -421,6 +431,8 @@ export function useMitigationBudgetV2({
     unlockScenario,
     continueFromSiting,
     continueFromMitigation,
+    backFromMitigation,
+    backFromBenefits,
     applyWaterTarget,
     applyWasteTarget,
     applyAirTarget,
