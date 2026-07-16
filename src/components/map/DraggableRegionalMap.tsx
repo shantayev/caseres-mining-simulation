@@ -25,7 +25,7 @@ import {
 } from './mapGeometry';
 import { isPointInNoBuildZone } from './noBuildZones';
 import { NoBuildOverlays } from './NoBuildOverlays';
-import { MapScaleBar, ExtractionZoneGuide } from './MapScaleBar';
+import { MapScaleBar } from './MapScaleBar';
 import {
   canPlaceIndustrialType,
   formatFacilityPlacementSummary,
@@ -36,6 +36,7 @@ import {
   formatMapDistanceKm,
   SPREAD_PENALTY_ZERO_AT_KM,
 } from '../../data/mapScale';
+import type { WorkflowPhase } from '../../hooks/useMitigationBudgetV2';
 
 export interface BenefitPlacement {
   xPct: number;
@@ -60,6 +61,8 @@ export interface DraggableRegionalMapProps {
   /** Mine size, capacity, and facility tier for industrial placement limits (technical mode). */
   industrialScenario?: IndustrialScenario | null;
   scenarioLocked?: boolean;
+  /** Workflow phase — industrial placement only in `siting`. */
+  workflowPhase?: WorkflowPhase;
   /** Facility spread penalty (from mitigation budget hook). */
   avgChainSpreadPct?: number;
   spreadPenaltyPct?: number;
@@ -85,13 +88,16 @@ export const DraggableRegionalMap: React.FC<DraggableRegionalMapProps> = ({
   compact = false,
   industrialScenario = null,
   scenarioLocked = false,
+  workflowPhase = 'scenario',
   avgChainSpreadPct = 0,
   spreadPenaltyPct = 0,
   className,
 }) => {
   const isTechnical = mode === 'technical';
   const enforceIndustrialLimits = Boolean(industrialScenario && scenarioLocked);
-  const mapPlacementEnabled = scenarioLocked;
+  const industrialPlacementEnabled = workflowPhase === 'siting';
+  const benefitPlacementEnabled = !isTechnical && workflowPhase === 'benefits';
+  const mapPlacementEnabled = industrialPlacementEnabled || benefitPlacementEnabled;
   const [internalIndustrial, setInternalIndustrial] = useState<PlacedIndustrialSymbol[]>([]);
   const placedIndustrial = placedIndustrialProp ?? internalIndustrial;
 
@@ -158,7 +164,7 @@ export const DraggableRegionalMap: React.FC<DraggableRegionalMapProps> = ({
 
   const addIndustrialAtClient = useCallback(
     (type: IndustrialSymbolType, clientX: number, clientY: number) => {
-      if (!mapPlacementEnabled) return;
+      if (!industrialPlacementEnabled) return;
       const pct = resolveDropPercent(clientX, clientY);
       if (!pct) return;
       if (!canPlaceAt(pct.xPct, pct.yPct)) {
@@ -199,7 +205,7 @@ export const DraggableRegionalMap: React.FC<DraggableRegionalMapProps> = ({
       industrialScenario,
       scenarioLocked,
       placedIndustrial,
-      mapPlacementEnabled,
+      industrialPlacementEnabled,
     ]
   );
 
@@ -224,10 +230,11 @@ export const DraggableRegionalMap: React.FC<DraggableRegionalMapProps> = ({
     const industrialType = (e.dataTransfer.getData(MAP_INDUSTRIAL_DRAG_TYPE) ||
       e.dataTransfer.getData('text/plain')) as IndustrialSymbolType;
     if (industrialType && INDUSTRIAL_SYMBOLS.some(s => s.type === industrialType)) {
+      if (!industrialPlacementEnabled) return;
       addIndustrialAtClient(industrialType, e.clientX, e.clientY);
       return;
     }
-    if (!isTechnical && onBenefitPlace) {
+    if (!isTechnical && onBenefitPlace && benefitPlacementEnabled) {
       const benefitId = (e.dataTransfer.getData(MAP_BENEFIT_DRAG_TYPE) ||
         e.dataTransfer.getData('text/plain')) as CommunityBenefitId;
       if (benefitId && COMMUNITY_BENEFITS.some(b => b.id === benefitId)) {
@@ -243,7 +250,8 @@ export const DraggableRegionalMap: React.FC<DraggableRegionalMapProps> = ({
     id: string,
     category: 'industrial' | 'benefit'
   ) => {
-    if (!mapPlacementEnabled) return;
+    if (category === 'industrial' && !industrialPlacementEnabled) return;
+    if (category === 'benefit' && !benefitPlacementEnabled) return;
     if (e.button !== 0) return;
     e.preventDefault();
     e.stopPropagation();
@@ -290,11 +298,12 @@ export const DraggableRegionalMap: React.FC<DraggableRegionalMapProps> = ({
   };
 
   const removeIndustrial = (id: string) => {
+    if (!industrialPlacementEnabled) return;
     setPlacedIndustrial(prev => prev.filter(s => s.id !== id));
   };
 
   const benefitCanAfford = (id: CommunityBenefitId) => {
-    if (!mapPlacementEnabled) return false;
+    if (!benefitPlacementEnabled) return false;
     const benefit = COMMUNITY_BENEFITS.find(b => b.id === id);
     if (!benefit) return false;
     if (selectedBenefits.includes(id)) return true;
@@ -305,12 +314,23 @@ export const DraggableRegionalMap: React.FC<DraggableRegionalMapProps> = ({
 
   const industrialChipEnabled = useCallback(
     (type: IndustrialSymbolType) => {
-      if (!mapPlacementEnabled) return false;
+      if (!industrialPlacementEnabled) return false;
       if (!enforceIndustrialLimits || !industrialScenario) return false;
       return canPlaceIndustrialType(type, placedIndustrial, industrialScenario).ok;
     },
-    [mapPlacementEnabled, enforceIndustrialLimits, industrialScenario, placedIndustrial]
+    [industrialPlacementEnabled, enforceIndustrialLimits, industrialScenario, placedIndustrial]
   );
+
+  const overlayMessage =
+    workflowPhase === 'scenario'
+      ? 'Lock scenario to site facilities'
+      : workflowPhase === 'siting'
+        ? null
+        : workflowPhase === 'mitigation'
+          ? 'Continue to benefits when ready — map siting is locked'
+          : isTechnical
+            ? 'Siting complete — export from Step 4'
+            : 'Place community benefits on the map';
 
   return (
     <div
@@ -334,7 +354,7 @@ export const DraggableRegionalMap: React.FC<DraggableRegionalMapProps> = ({
       <div
         className={clsx(
           'px-2 py-2 border-b bg-white shrink-0',
-          !mapPlacementEnabled && 'opacity-50 pointer-events-none'
+          !industrialPlacementEnabled && 'opacity-50 pointer-events-none'
         )}
       >
         <span className="text-[10px] text-gray-500 font-semibold block mb-1.5">
@@ -364,8 +384,8 @@ export const DraggableRegionalMap: React.FC<DraggableRegionalMapProps> = ({
                   : 'opacity-40 cursor-not-allowed'
               )}
               title={
-                !mapPlacementEnabled
-                  ? 'Lock scenario in Configuration before placing facilities'
+                !industrialPlacementEnabled
+                  ? 'Complete Step 1 (lock) and use Step 2 to place facilities'
                   : canDrag
                     ? `Drag ${label} to map`
                     : enforceIndustrialLimits && industrialScenario
@@ -387,7 +407,7 @@ export const DraggableRegionalMap: React.FC<DraggableRegionalMapProps> = ({
           <div
             className={clsx(
               'w-[min(140px,28%)] shrink-0 border-r bg-white px-1.5 py-2 flex flex-col gap-1.5 overflow-y-auto',
-              !mapPlacementEnabled && 'opacity-50 pointer-events-none'
+              !benefitPlacementEnabled && 'opacity-50 pointer-events-none'
             )}
           >
             <span className="text-[9px] text-gray-500 font-semibold leading-tight">
@@ -416,8 +436,8 @@ export const DraggableRegionalMap: React.FC<DraggableRegionalMapProps> = ({
                     isSelected && 'ring-2 ring-green-300'
                   )}
                   title={
-                    !mapPlacementEnabled
-                      ? 'Lock scenario in Configuration before placing benefits'
+                    !benefitPlacementEnabled
+                      ? 'Continue to Step 4 to place community benefits'
                       : affordable
                         ? `Drag ${label} to map ($${(cost / 1_000_000).toFixed(1)}M)`
                         : 'Not enough budget remaining'
@@ -441,7 +461,7 @@ export const DraggableRegionalMap: React.FC<DraggableRegionalMapProps> = ({
             className={clsx(
               'relative w-full aspect-square mx-auto overflow-visible',
               compact ? 'max-w-full' : 'max-w-full max-h-[min(68vh,620px)]',
-              !mapPlacementEnabled && 'opacity-60'
+              !industrialPlacementEnabled && !benefitPlacementEnabled && 'opacity-60'
             )}
             onDragOver={handleMapDragOver}
             onDrop={handleMapDrop}
@@ -472,14 +492,13 @@ export const DraggableRegionalMap: React.FC<DraggableRegionalMapProps> = ({
                 }}
               >
                 <MapScaleBar />
-                <ExtractionZoneGuide visible={mapPlacementEnabled} />
               </div>
             )}
 
-            {!mapPlacementEnabled && (
+            {overlayMessage && (
               <div className="absolute inset-0 z-30 flex items-center justify-center bg-gray-900/10 pointer-events-none">
                 <span className="text-[10px] font-semibold text-gray-700 bg-white/90 px-2 py-1 rounded shadow">
-                  Lock scenario to place icons
+                  {overlayMessage}
                 </span>
               </div>
             )}
@@ -594,11 +613,15 @@ export const DraggableRegionalMap: React.FC<DraggableRegionalMapProps> = ({
 
       <div className="px-2 py-1 text-[10px] text-gray-500 border-t bg-white shrink-0 space-y-0.5">
         <p>
-          {isTechnical
-            ? 'Lock scenario first, then site facilities per mine size, capacity, and facility tier.'
-            : industrialScenario
-              ? 'Lock scenario first, then site facilities per mine size, capacity, and facility tier.'
-              : 'Shaded zones = no-build areas — industrial symbols cannot be placed there.'}
+          {workflowPhase === 'scenario'
+            ? 'Step 1: Lock mine size, capacity, and facility, then site industrial facilities on the map.'
+            : workflowPhase === 'siting'
+              ? 'Step 2: Place required facilities. Extraction must be within 1 km of the ore body.'
+              : workflowPhase === 'mitigation'
+                ? 'Step 3: Allocate mitigation on the right (or below). Map siting is locked.'
+                : isTechnical
+                  ? 'Step 4: Select community benefits and submit results.'
+                  : 'Step 4: Select and place community benefits, then submit.'}
         </p>
         {scenarioLocked && spreadPenaltyPct > 0 && (
           <p className="font-medium text-amber-800">
@@ -613,18 +636,17 @@ export const DraggableRegionalMap: React.FC<DraggableRegionalMapProps> = ({
             {SPREAD_PENALTY_ZERO_AT_KM} km per link)
           </p>
         )}
-        {industrialScenario && scenarioLocked && (
+        {industrialScenario && workflowPhase === 'siting' && (
           <p className="font-medium text-gray-700">
             Required: {formatFacilityPlacementSummary(placedIndustrial, industrialScenario)}
           </p>
         )}
-        {industrialScenario && !scenarioLocked && (
+        {workflowPhase === 'scenario' && industrialScenario && (
           <p className="text-amber-700">Lock scenario in Configuration before placing facilities.</p>
         )}
-        {!isTechnical && scenarioLocked && (
+        {!isTechnical && workflowPhase === 'benefits' && (
           <p>
-            Drag industrial symbols from above or community benefits from the left; double-click or ✕
-            to remove.
+            Drag community benefits from the left onto the map; double-click or ✕ to remove.
           </p>
         )}
         {(placedIndustrial.length > 0 || placedBenefitCount > 0) && (

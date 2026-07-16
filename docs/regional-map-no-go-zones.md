@@ -19,7 +19,7 @@ The **ore body** appears on the base map artwork but is **not** a selectable no-
 
 ## 2. Map display
 
-- Regional map represents a **10 km × 10 km** area. A **1 km scale bar** is shown in the bottom-left corner.
+- Regional map represents a **10 km × 10 km** area. A **1 km scale bar** (10% of map image width) is shown in the bottom-left corner.
 - Regional map image is **1254×1254** (square). Containers use **`aspect-square`** with **`object-contain`** so the map fills the box with no side letterboxing and no-go overlays stay aligned.
 - Selected no-go zones show a **red border** and light red fill.
 - Zone labels appear inside selected regions.

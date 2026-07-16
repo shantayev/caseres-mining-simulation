@@ -2,15 +2,23 @@
 
 **Mining Stakeholder Simulation — Technical Developer View (PIN 5678)**
 
-After locking the scenario, technical teams drag industrial facility icons onto the regional map. Placement counts must match mine size, capacity, and facility tier before CSV export.
+After locking the scenario, technical teams follow a **gated sequence**: site facilities → allocate mitigation → select community benefits. Placement counts must match mine size, capacity, and facility tier before continuing past siting or exporting.
 
 ---
 
 ## 1. When rules apply
 
-- **Lock scenario** in Configuration before placing facilities (map icons are disabled until lock).
-- Rules apply on the **Developer** and **Joint** maps after scenario lock.
-- **Export** (`mining_simulation_results.csv`) is blocked until all required sites are placed and valid.
+Workflow phases (Developer PIN `5678` and Joint PIN `9999`):
+
+1. **Scenario** — choose mine size, capacity, facility; **Lock scenario**
+2. **Siting** — place industrial icons on the map (only phase where industrial drag/drop is enabled). **Continue** stays disabled until all required facilities are valid.
+3. **Mitigation** — water / waste / air sliders only
+4. **Benefits** — community benefit selection (and Joint map benefit pins); export / submit
+
+Unlock scenario resets to phase 1 and clears placements and benefits.
+
+- **Export** / Joint Submit is blocked until phase **Benefits**.
+- Extraction must be within 1 km of the ore body; out-of-range drops show an alert (no shaded guide on the map).
 
 ---
 
@@ -24,7 +32,7 @@ After locking the scenario, technical teams drag industrial facility icons onto 
 
 *Note: There is no 6 km² option; 4 km² uses the 2-site rule.*
 
-**Location rule:** Each extraction site must be within **1 km** of the ore body region (shown on the base map). A dashed amber guide appears after scenario lock on Developer and Joint maps.
+**Location rule:** Each extraction site must be within **1 km** of the ore body region (Euclidean distance to the ore rectangle). There is no shaded placement guide on the map — invalid drops show an alert with the distance.
 
 ---
 
@@ -68,10 +76,9 @@ When **Facility** is **Processing** or **Advanced Manufacturing**:
 
 ## 7. Map UI feedback
 
-- **1 km scale bar** in the bottom-left (10 km × 10 km map extent).
-- Dashed **amber extraction zone** guide (1 km buffer around ore body) after scenario lock.
+- **1 km scale bar** in the bottom-left: width is **10% of the map image** (10 km × 10 km extent), measured against the image overlay box.
 - Footer shows progress, e.g. `extraction 1/1 · refining 2/2`.
-- Dropping over the limit or outside the extraction zone shows an alert.
+- Dropping over the limit or more than 1 km from the ore body (extraction) shows an alert.
 - Spreading facilities apart increases the **facility spread cost** on unassigned budget (§9).
 
 ---

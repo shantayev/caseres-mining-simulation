@@ -25,11 +25,12 @@ export interface JointDeveloperPanelProps {
     selectedCapacity: Capacity;
     selectedFacilityId: AirTierId;
     scenarioLocked: boolean;
+    phase: import('../../hooks/useMitigationBudgetV2').WorkflowPhase;
   }) => void;
   onRegisterExport?: (exportFn: (jointExtras?: JointExportExtras) => void) => void;
 }
 
-/** Joint developer controls — same two-step budget flow as DeveloperView. */
+/** Joint developer controls — same gated four-step budget flow as DeveloperView. */
 export const JointDeveloperPanel: React.FC<JointDeveloperPanelProps> = ({
   selectedBenefits,
   onToggleBenefit,

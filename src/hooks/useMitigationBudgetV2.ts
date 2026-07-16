@@ -1,7 +1,10 @@
 import { useState, useCallback, useMemo } from 'react';
 import { COMMUNITY_BENEFITS } from '../data/communityBenefits';
 import { serializeIndustrialPlacements, serializeBenefitPlacements } from '../data/mapOverlap';
-import { validateIndustrialPlacements } from '../data/industrialPlacementRules';
+import {
+  formatFacilityPlacementSummary,
+  validateIndustrialPlacements,
+} from '../data/industrialPlacementRules';
 import { computeFacilitySpreadPenalty } from '../data/facilitySpreadPenalty';
 import { escapeCsvField } from '../utils/csvParse';
 import type { PlacedIndustrialSymbol } from '../components/map/mapSymbols';
@@ -36,6 +39,16 @@ import {
 const clampWaterTargetStep = (value: number) => Math.round(value / 10_000) * 10_000;
 const clampWasteTargetStep = (value: number) => Math.round(value / 50_000) * 50_000;
 
+/** Forward-only workflow after scenario lock. */
+export type WorkflowPhase = 'scenario' | 'siting' | 'mitigation' | 'benefits';
+
+export const WORKFLOW_PHASE_LABELS: Record<WorkflowPhase, string> = {
+  scenario: 'Step 1: Choose scenario',
+  siting: 'Step 2: Site facilities',
+  mitigation: 'Step 3: Allocate mitigation',
+  benefits: 'Step 4: Community benefits',
+};
+
 export interface JointExportExtras {
   noBuildZoneIds?: SelectableNoBuildId[];
   benefitPlacements?: Partial<Record<string, { xPct: number; yPct: number }>>;
@@ -56,6 +69,7 @@ export function useMitigationBudgetV2({
   placedIndustrial = [],
 }: UseMitigationBudgetV2Options) {
   const [scenarioLocked, setScenarioLocked] = useState(false);
+  const [phase, setPhase] = useState<WorkflowPhase>('scenario');
   const [lockedTotalBudget, setLockedTotalBudget] = useState<number | null>(null);
   const [selectedSize, setSelectedSize] = useState<MineSize>(MINE_SIZES[0]);
   const [selectedCapacity, setSelectedCapacity] = useState<Capacity>(CAPACITIES[0]);
@@ -107,6 +121,27 @@ export function useMitigationBudgetV2({
         : 0,
     [scenarioLocked, selectedBenefits]
   );
+
+  const industrialScenario = useMemo(
+    () => ({
+      mineSizeKm2: selectedSize.value,
+      capacityMton: selectedCapacity.value,
+      facilityTier: selectedFacilityId,
+    }),
+    [selectedSize, selectedCapacity, selectedFacilityId]
+  );
+
+  const sitingValidation = useMemo(
+    () => validateIndustrialPlacements(placedIndustrial, industrialScenario),
+    [placedIndustrial, industrialScenario]
+  );
+
+  const sitingSummary = useMemo(
+    () => formatFacilityPlacementSummary(placedIndustrial, industrialScenario),
+    [placedIndustrial, industrialScenario]
+  );
+
+  const canContinueFromSiting = scenarioLocked && phase === 'siting' && sitingValidation.ok;
 
   const totalAllocated = allocWater + allocWaste + allocAir + communitySpend;
   const grossUnassigned = totalBudget - totalAllocated;
@@ -206,6 +241,7 @@ export function useMitigationBudgetV2({
     setLockedWasteFloor(allocWaste);
     setLockedAirFloor(allocAir);
     setScenarioLocked(true);
+    setPhase('siting');
     setWaterClamped(false);
     setWasteClamped(false);
     setAirClamped(false);
@@ -214,21 +250,32 @@ export function useMitigationBudgetV2({
   const unlockScenario = () => {
     if (
       !window.confirm(
-        'Unlock scenario? Step 2 allocations (extra slider spend and community benefits) will be reset.'
+        'Unlock scenario? Facility placements, mitigation allocations, and community benefits will be reset.'
       )
     ) {
       return;
     }
     setScenarioLocked(false);
     setLockedTotalBudget(null);
+    setPhase('scenario');
     onScenarioUnlock?.();
     setWaterClamped(false);
     setWasteClamped(false);
     setAirClamped(false);
   };
 
+  const continueFromSiting = () => {
+    if (!canContinueFromSiting) return;
+    setPhase('mitigation');
+  };
+
+  const continueFromMitigation = () => {
+    if (phase !== 'mitigation') return;
+    setPhase('benefits');
+  };
+
   const applyWaterTarget = (desiredAllocUsd: number) => {
-    if (!scenarioLocked) return;
+    if (phase !== 'mitigation') return;
     const raw = Number.isFinite(desiredAllocUsd) ? desiredAllocUsd : lockedWaterFloor;
     const raised = Math.max(raw, lockedWaterFloor);
     const clamped = Math.min(raised, WATER_SPEND_MAX_USD, maxWaterSpendAffordable);
@@ -242,7 +289,7 @@ export function useMitigationBudgetV2({
   };
 
   const applyWasteTarget = (desiredAllocUsd: number) => {
-    if (!scenarioLocked) return;
+    if (phase !== 'mitigation') return;
     const raw = Number.isFinite(desiredAllocUsd) ? desiredAllocUsd : lockedWasteFloor;
     const raised = Math.max(raw, lockedWasteFloor);
     const clamped = Math.min(raised, WASTE_SPEND_MAX_USD, maxWasteSpendAffordable);
@@ -256,7 +303,7 @@ export function useMitigationBudgetV2({
   };
 
   const applyAirTarget = (desiredAllocUsd: number) => {
-    if (!scenarioLocked) return;
+    if (phase !== 'mitigation') return;
     const raw = Number.isFinite(desiredAllocUsd) ? desiredAllocUsd : lockedAirFloor;
     const raised = Math.max(raw, lockedAirFloor);
     const finalAlloc = clampAirSpend(raised, maxAirSpendAffordable);
@@ -267,7 +314,7 @@ export function useMitigationBudgetV2({
   };
 
   const handleToggleBenefit = (id: string) => {
-    if (!scenarioLocked) return;
+    if (phase !== 'benefits') return;
     const benefit = COMMUNITY_BENEFITS.find(b => b.id === id);
     if (!benefit) return;
     if (selectedBenefits.includes(id)) {
@@ -284,8 +331,8 @@ export function useMitigationBudgetV2({
   };
 
   const handleDownloadCSV = (jointExtras?: JointExportExtras) => {
-    if (!scenarioLocked) {
-      alert('Lock your scenario before exporting results.');
+    if (phase !== 'benefits') {
+      alert('Complete all steps (scenario → siting → mitigation → benefits) before exporting.');
       return;
     }
     if (placedIndustrial.length > 0) {
@@ -333,11 +380,16 @@ export function useMitigationBudgetV2({
   };
 
   return {
+    phase,
     scenarioLocked,
     selectedSize,
     selectedCapacity,
     selectedFacility,
     selectedFacilityId,
+    industrialScenario,
+    sitingValidation,
+    sitingSummary,
+    canContinueFromSiting,
     allocWater,
     allocWaste,
     allocAir,
@@ -367,6 +419,8 @@ export function useMitigationBudgetV2({
     handleFacilityChange,
     lockScenario,
     unlockScenario,
+    continueFromSiting,
+    continueFromMitigation,
     applyWaterTarget,
     applyWasteTarget,
     applyAirTarget,

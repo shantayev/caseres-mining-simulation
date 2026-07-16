@@ -16,8 +16,8 @@ Related detail:
 | View | PIN | Role |
 |------|-----|------|
 | Community | 1234 | Vote on mine size, select benefits and no-go zones |
-| Developer | 5678 | Lock scenario, allocate mitigation budget, site facilities |
-| Joint | 9999 | Developer logic + community map + live utility chart |
+| Developer | 5678 | Lock scenario → site facilities → mitigation → benefits |
+| Joint | 9999 | Same gated flow + community map + live utility chart |
 | Admin | 5555 | Upload CSVs, feasibility checks, overlap map |
 
 ---
@@ -181,7 +181,9 @@ The chart plots all **31 non-empty subsets** of the five benefits. Dot color ran
 
 ## 5. Industrial facility siting
 
-Rules apply on **Developer** and **Joint** maps after scenario lock. See [facility-siting-rules.md](facility-siting-rules.md).
+Rules apply on **Developer** and **Joint** maps in the **siting** phase after scenario lock. See [facility-siting-rules.md](facility-siting-rules.md).
+
+**Workflow phases:** `scenario` → `siting` → `mitigation` → `benefits` (forward-only; Unlock resets). Industrial map placement only in `siting`. Continue from siting requires `validateIndustrialPlacements` to pass.
 
 ### 5.1 Required facility counts
 
@@ -205,7 +207,7 @@ Rules apply on **Developer** and **Joint** maps after scenario lock. See [facili
 
 **Advanced manufacturing** (tier = Advanced Manufacturing): exactly **1** additional site.
 
-**Extraction proximity:** each extraction site must be within **1 km** of the ore body region (`ORE_BODY_REGION` in `noBuildZones.ts`).
+**Extraction proximity:** each extraction site must be within **1 km** of the ore body region (`ORE_BODY_REGION`). Invalid placements are rejected with an alert (no on-map shaded buffer).
 
 ### 5.2 Map distance
 

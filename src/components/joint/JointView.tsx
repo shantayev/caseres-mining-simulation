@@ -15,7 +15,7 @@ import {
   getMaxNoBuildZonesForMineSizeKm2,
   canToggleNoBuildZone,
 } from '../../data/noBuildAreas';
-import type { JointExportExtras } from '../../hooks/useMitigationBudgetV2';
+import type { JointExportExtras, WorkflowPhase } from '../../hooks/useMitigationBudgetV2';
 import type { MineSize, Capacity, AirTierId } from '../../data/mitigationConstants';
 import type { PlacedIndustrialSymbol } from '../map/mapSymbols';
 
@@ -63,6 +63,7 @@ export const JointView: React.FC = () => {
   const [selectedCapacity, setSelectedCapacity] = useState<Capacity | null>(null);
   const [selectedFacilityId, setSelectedFacilityId] = useState<AirTierId | null>(null);
   const [scenarioLocked, setScenarioLocked] = useState(false);
+  const [workflowPhase, setWorkflowPhase] = useState<WorkflowPhase>('scenario');
   const [avgChainSpreadPct, setAvgChainSpreadPct] = useState(0);
   const [spreadPenaltyPct, setSpreadPenaltyPct] = useState(0);
 
@@ -122,11 +123,13 @@ export const JointView: React.FC = () => {
       selectedCapacity: Capacity;
       selectedFacilityId: AirTierId;
       scenarioLocked: boolean;
+      phase: WorkflowPhase;
     }) => {
       setSelectedSize(s.selectedSize);
       setSelectedCapacity(s.selectedCapacity);
       setSelectedFacilityId(s.selectedFacilityId);
       setScenarioLocked(s.scenarioLocked);
+      setWorkflowPhase(s.phase);
     },
     []
   );
@@ -168,6 +171,7 @@ export const JointView: React.FC = () => {
 
   const handleBenefitPlace = useCallback(
     (id: CommunityBenefitId, xPct: number, yPct: number) => {
+      if (workflowPhase !== 'benefits') return;
       const benefit = getCommunityBenefit(id);
       if (!benefit) return;
       if (!selectedBenefits.includes(id)) {
@@ -181,7 +185,7 @@ export const JointView: React.FC = () => {
       }
       setBenefitPlacements(prev => ({ ...prev, [id]: { xPct, yPct } }));
     },
-    [selectedBenefits, unassignedBudget]
+    [selectedBenefits, unassignedBudget, workflowPhase]
   );
 
   const handleBenefitRemove = useCallback((id: CommunityBenefitId) => {
@@ -232,9 +236,8 @@ export const JointView: React.FC = () => {
   return (
     <div className="flex-1 flex flex-col gap-3 min-h-0 overflow-y-auto overflow-x-hidden text-gray-900">
       <p className="text-[11px] text-gray-600 px-1 shrink-0">
-        Joint workspace: choose areas to avoid, drag industrial and community-benefit symbols onto the
-        regional map, compare benefit utility vs cost, then adjust technical mitigation (same rules as
-        the technical teams screen).
+        Joint workspace: lock scenario → site facilities → allocate mitigation → select benefits.
+        Chart stays on the left; map on the right; technical controls below.
       </p>
 
       <JointNoBuildToolbar
@@ -266,6 +269,7 @@ export const JointView: React.FC = () => {
             onBenefitRemove={handleBenefitRemove}
             industrialScenario={industrialScenario}
             scenarioLocked={scenarioLocked}
+            workflowPhase={workflowPhase}
             avgChainSpreadPct={avgChainSpreadPct}
             spreadPenaltyPct={spreadPenaltyPct}
           />
@@ -285,7 +289,7 @@ export const JointView: React.FC = () => {
         <button
           type="button"
           onClick={handleJointSubmit}
-          disabled={!scenarioLocked}
+          disabled={workflowPhase !== 'benefits'}
           className="shrink-0 bg-gray-900 text-white px-4 py-3 rounded-lg font-bold shadow hover:bg-black disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm"
         >
           <Download size={16} />
